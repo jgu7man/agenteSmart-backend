@@ -1,7 +1,7 @@
 import { google } from '@google-cloud/dialogflow/build/protos/protos';
 
 export interface Project{
-    name: string;
+    displayName: string;
     projectId: string;
     parent: {
         id: string;
@@ -26,6 +26,6 @@ export interface Agent extends google.cloud.dialogflow.v2.IAgent{
 
 };
 export interface IPreProject {
-    name: string;
+    displayName: string;
     projectId: string;
 }
