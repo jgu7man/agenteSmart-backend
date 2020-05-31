@@ -12,8 +12,8 @@ async function createProject( project: Project ): Promise<Project | unknown | an
     // This method looks for the GCLOUD_PROJECT and GOOGLE_APPLICATION_CREDENTIALS
     // environment variables.
 
-    let resource = new Resource( { keyFilename } );
-    let options = {
+    const resource = new Resource( { keyFilename } );
+    const options = {
         name: project.displayName,
         parent: {
             type: "organization",
@@ -24,7 +24,7 @@ async function createProject( project: Project ): Promise<Project | unknown | an
     return await resource.createProject( project.projectId, <any> options )
         .then( data => {
             // let project = data[0];
-            let operation = data[ 1 ];
+            const operation = data[ 1 ];
             // let apiResponse = data[2];
             return operation.promise();
 
@@ -39,13 +39,12 @@ async function createAgent( agent: Agent ): Promise<Agent> {
     agent.defaultLanguageCode = ( agent.defaultLanguageCode ) ? agent.defaultLanguageCode : 'es';
     agent.apiVersion = 'API_VERSION_V2'
     agent.matchMode = 'MATCH_MODE_HYBRID'
-    agent.tier = 'TIER_STANDARD'
     agent.enableLoggin = true
 
-    let resource = new dialogflow.AgentsClient( { keyFilename, projectId: agent.parent } );
+    const resource = new dialogflow.AgentsClient( { keyFilename, projectId: agent.parent } );
     return await resource.setAgent( { agent } )
         .then( res => {
-            let newAgent: Agent = res[ 0 ];
+            const newAgent: Agent = res[ 0 ];
             return newAgent;
         } );
 }
@@ -53,8 +52,8 @@ async function createAgent( agent: Agent ): Promise<Agent> {
 export function create(req: Request, res: Response) {
 
         console.log(req.body);
-    let displayName = req.body.displayName;
-    let projectId = req.body.agenteId
+    const displayName = req.body.displayName;
+    const projectId = req.body.agenteId
         // let { displayName }: Agent = req.body;
 
         if ( !displayName || !projectId ) {
@@ -62,20 +61,20 @@ export function create(req: Request, res: Response) {
             res.status( 400 ).send( 'Bad Request' );
             return;
         }
-    let proyecto: IPreProject = { displayName, projectId };
+    const proyecto: IPreProject = { displayName, projectId };
 
         createProject( <any> proyecto )
             .then( result => {
                 if ( result ) {
                     //aqui se crea proyecto
-                    let response = result[ 0 ];
+                    const response = result[ 0 ];
                     return response.response;
                 }
             } )
             .then( response => {
                 //create Agent
-                let currentProject: Project = response;
-                let agent: Agent | any = {
+                const currentProject: Project = response;
+                const agent: Agent | any = {
                     parent: currentProject.projectId,
                     displayName: displayName
 
@@ -88,7 +87,7 @@ export function create(req: Request, res: Response) {
                 return;
             } )
             .catch( error => {
-                let errorMsg: Error | object = {
+                const errorMsg: Error | object = {
                     message: error.message || "Something bad has occurred creating a new Agent",
                     error: error,
                     errorCode: "PIPELINE ERROR CODE",

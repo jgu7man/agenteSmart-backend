@@ -34,7 +34,7 @@ class app {
 
 }
 
-var server = new app();
+const server = new app();
 // server.start();
 
 exports.dialogflow = functions.https.onRequest(server.app);
