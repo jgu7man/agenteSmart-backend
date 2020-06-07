@@ -16,6 +16,7 @@
   "dependencies": {
     "@google-cloud/dialogflow": "^2.0.0",
     "@google-cloud/resource": "^1.1.5",
+    "@hapi/joi": "^17.1.1",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "dialogflow": "^1.2.0",

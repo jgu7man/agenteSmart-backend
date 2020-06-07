@@ -1,11 +1,13 @@
-import * as functions from 'firebase-functions';
+// import * as functions from 'firebase-functions';
 import path from "path";
-import AgentRoutes from './routes/agentes.routes';
 import express, { Application } from 'express';
 import cors from 'cors';
 
 export const keyFilename = path.join(__dirname +'/main-agentesmart-589511385b0d.json');
 
+//routes
+import AgentRoutes from './routes/agentes.routes';
+import intentRoutes from './routes/intent.routes';
 
 class app {
 	
@@ -18,12 +20,11 @@ class app {
 	}
 
 	public routes() {
-		this.app.use('/agentes', new AgentRoutes().router)
+		this.app.use('/agentes', new AgentRoutes().router);
+		this.app.use('/intent', new intentRoutes().router);
 	}
 	
 	private config(): void {
-		//for local testing ('cause we have key_file auth)
-		// this.app.set('port', process.env.PORT || 3000);
 
 		//middleware SetUp
 		this.app.use( express.json() )
@@ -32,9 +33,14 @@ class app {
 
 	}
 
+	public start(): void {
+		let listener = this.app.listen(3000, () => {
+			console.log(`Server up on port: ` + listener.address().port);
+		})
+	}
 }
 
 const server = new app();
-// server.start();
+server.start();
 
-exports.dialogflow = functions.https.onRequest(server.app);
+// exports.dialogflow = functions.https.onRequest(server.app);

@@ -49,18 +49,17 @@ async function createAgent( agent: Agent ): Promise<Agent> {
         } );
 }
 
-export function create(req: Request, res: Response) {
+export function create(req: Request, res: Response): void{
 
-        console.log(req.body);
-    const displayName = req.body.displayName;
-    const projectId = req.body.agenteId
+    const {displayName, projectId} = req.body;
         // let { displayName }: Agent = req.body;
 
-        if ( !displayName || !projectId ) {
-            console.log( "Need to provide: name:" + displayName + "\nProject ID:" + projectId );
-            res.status( 400 ).send( 'Bad Request' );
-            return;
-        }
+    if ( !displayName || !projectId ) {
+        console.log( "Need to provide: name:" + displayName + "\nProject ID:" + projectId );
+        res.status( 400 ).send( 'Bad Request' );
+        return;
+    }
+
     const proyecto: IPreProject = { displayName, projectId };
 
         createProject( <any> proyecto )
@@ -95,7 +94,5 @@ export function create(req: Request, res: Response) {
                 console.log( 'An error has occurred with the pipeline method:', error );
                 res.status( 500 ).send( JSON.stringify( errorMsg ) );
                 return;
-            } );
-    }
-
-   
+            });
+}

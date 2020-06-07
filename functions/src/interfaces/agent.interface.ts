@@ -29,3 +29,50 @@ export interface IPreProject {
     displayName: string;
     projectId: string;
 }
+
+export interface IIntent {
+    name?: string;
+    displayName: string;
+    webHookState: number;
+    trainingPhrases: Array<ITrainingPhrase>;
+    action?: string;
+    parameters?: Array<IParameter>;
+    messages?: Array<object>;
+    isFallback?: boolean;
+}
+
+export interface IParameter {
+    name: string;
+    displayName: string;
+    value: string;
+    defaultValue?: string;
+    entityTypeDisplayName?: string;
+    mandatory: boolean;
+    prompts?: Array<string>;
+    isList: boolean;
+}
+
+export interface ITrainingPhrase {
+    name: string;
+    type: number;
+    parts: Array<IPart>;
+}
+
+export interface IPart {
+    text: string;
+    entityType: string;
+    alias?: string;
+    userDefine?: boolean;
+}
+export interface IEntityType {
+    name: string;
+    display: string;
+    kind: number;
+    autoExpansionMode?: number;
+    entities: Array<IEntity>;
+}
+
+export interface IEntity {
+    value: string;
+    synonyms: Array<string>;
+}
