@@ -1,4 +1,4 @@
-// import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions';
 import path from "path";
 import express, { Application } from 'express';
 import cors from 'cors';
@@ -35,14 +35,14 @@ class app {
 
 	}
 
-	public start(): void {
-		let listener = this.app.listen(3000, () => {
-			console.log(`Server up on port: ` + listener.address().port);
-		})
-	}
+	// public start(): void {
+	// 	let listener = this.app.listen(3000, () => {
+	// 		console.log(`Server up on port: ` + listener.address().port);
+	// 	})
+	// }
 }
 
 const server = new app();
-server.start();
+// server.start();
 
-// exports.dialogflow = functions.https.onRequest(server.app);
+exports.dialogflow = functions.https.onRequest(server.app);

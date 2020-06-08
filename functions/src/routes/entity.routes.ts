@@ -3,8 +3,10 @@ import { Router } from "express";
 
 export default function exportRoutes(): Router{
     const entityController = new EntityController();
-    let router = Router();
-    
+    const router = Router();
+
+    router.put('/', entityController.updateEntity);
+
     router.post('/', entityController.createEntity);
     router.post('/:projectId', entityController.createEntity);
 

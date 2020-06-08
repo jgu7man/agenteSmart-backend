@@ -37,3 +37,9 @@ export interface ICreateEntityType {
     autoExpansionMOde?: number;
     entities: Array<IEntity>;
 }
+
+export interface IUpdateEntityType {
+    entityType: IEntityType,
+    languagueCode?: string | null;
+    updateMask?:object | null;
+}
