@@ -64,15 +64,3 @@ export interface IPart {
     alias?: string;
     userDefine?: boolean;
 }
-export interface IEntityType {
-    name: string;
-    display: string;
-    kind: number;
-    autoExpansionMode?: number;
-    entities: Array<IEntity>;
-}
-
-export interface IEntity {
-    value: string;
-    synonyms: Array<string>;
-}

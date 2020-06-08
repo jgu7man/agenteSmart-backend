@@ -8,6 +8,7 @@ export const keyFilename = path.join(__dirname +'/main-agentesmart-589511385b0d.
 //routes
 import AgentRoutes from './routes/agentes.routes';
 import intentRoutes from './routes/intent.routes';
+import entityRoutes from './routes/entity.routes';
 
 class app {
 	
@@ -22,6 +23,7 @@ class app {
 	public routes() {
 		this.app.use('/agentes', new AgentRoutes().router);
 		this.app.use('/intent', new intentRoutes().router);
+		this.app.use('/entity', entityRoutes());
 	}
 	
 	private config(): void {
