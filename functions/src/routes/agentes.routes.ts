@@ -1,5 +1,5 @@
 import {  Router, Request, Response  } from "express";
-import * as agentes from "../functions/agentes/crear-agente";
+import * as agentes from "../controllers/agentes/crear-agente";
 
 
 
