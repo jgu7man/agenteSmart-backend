@@ -2,7 +2,7 @@ import IntentController from '../controllers/intent.controller';
 
 import { Router } from 'express';
 
-export default class intentRoutes {
+export default class IntentRoutes {
 
     public router: Router;
     private intentController: IntentController;

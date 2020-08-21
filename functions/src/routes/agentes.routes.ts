@@ -1,11 +1,11 @@
 import {  Router, Request, Response  } from "express";
-import * as agentes from "../controllers/agentes/crear-agente";
+import * as agentes from "../controllers/agent.controller";
 
 
 
 export default class AgentRoutes {
 
-    router: Router
+    router: Router;
     constructor () {
         this.router = Router()
         this.routes()

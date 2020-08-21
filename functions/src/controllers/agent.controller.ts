@@ -1,5 +1,5 @@
-import { Project, Agent, IPreProject } from '../../interfaces/agent.interface';
-import { keyFilename } from "../../index";
+import { Project, Agent, IPreProject } from '../interfaces/agent.interface';
+import { keyFilename } from "../index";
 import { Resource } from '@google-cloud/resource';
 import dialogflow from '@google-cloud/dialogflow';
 import { Request, Response } from 'express';
