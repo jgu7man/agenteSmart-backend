@@ -1,4 +1,4 @@
-// import * as functions from 'firebase-functions';
+import * as functions from 'firebase-functions';
 import errorHandler from './helpers/exceptions';
 import path from "path";
 import express, { Application } from 'express';
@@ -53,6 +53,6 @@ class app {
 }
 
 const server = new app();
-server.start();
+// server.start();
 
-// exports.dialogflow = functions.https.onRequest(server.app);
+exports.dialogflow = functions.https.onRequest(server.app);
