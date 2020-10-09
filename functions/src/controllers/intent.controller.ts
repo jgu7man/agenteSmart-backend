@@ -1,6 +1,7 @@
 import { IntentsClient } from '@google-cloud/dialogflow';
 
-import { Request, Response } from "express";
+import { Request, Response  } from "express";
+import asyncHandler from '../helpers/asyncHandler';
 // ITrainingPhrase, 
 //     IParameter, 
 //     IPart 
@@ -32,9 +33,8 @@ export  default class IntentController {
             const operation = response[0];
             await client.close();
 
-            return res.status(200).json({
-                status: "Exito",
-                result: operation
+            return res.status(201).json({
+                intent: operation
             });
         }).catch( err => {
             return res.status(500).json({
@@ -48,9 +48,9 @@ export  default class IntentController {
 
     public updateIntent(req: Request, res: Response): void{
         //destructuring we can handle a 400 error here.
-        const { intent , intentView } = req.body as { intent: IIntent, intentView: number };
+        const { intent, intentView} = req.body as { intent: IIntent, intentView: number };
         const client = new IntentsClient({ keyFilename });
-
+        
         client.updateIntent({
             intent,
             intentView
@@ -69,30 +69,60 @@ export  default class IntentController {
             })
         });
     }
-     
+    
+    public deleteIntentWithParams = asyncHandler( async (req: Request, res: Response) => {
+        const { intent, projectId } = req.query as {intent: string, projectId: string}
+        const request = await this.deleteFromDialogFlow(intent, projectId);
 
-    public deleteIntent(req: Request, res: Response): void {
-        const intent:string = (typeof(req.params.intentId) === undefined)? req.params.intentId : req.body.intentId;
-        const projectId: string = req.body.projectId;
-        
-        const client = new IntentsClient({ keyFilename });
-        const name = client.intentPath(projectId, intent)
-        client.deleteIntent({ name })
-            .then( result => {
-                return res.status(200).json({
-                    status: "Success",
-                    result: {
-                        message: "Intent Succefully deleted",
-                        response: result[0]
+        if (request) {
+            res.status(204).end();
+        }
+    })
+    public deleteIntent = async (req: Request, res: Response) => {
+        const { intent, projectId } = req.params as { intent: string, projectId: string }
+        try {
+            
+            const request = await this.deleteFromDialogFlow(intent, projectId);
+            if (request) {
+                return res.status(204).end();
+            }
+        } catch (error) {
+            if (error.code == 5) {
+                res.status(404).json({
+                    status: "Error",
+                    name: "NOT INTENT AVAILABLE",
+                    message: error.message
+                }).end()
+                return
+            }
+            res.status(500).json({
+                status: "Error",
+                name: "INTENT DELATION ERROR",
+                message:"Error borrando Intent"
+            }).end()
+
+        }
+    };
+
+
+    private deleteFromDialogFlow(intentName: string, projectId: string):
+        Promise<object>{
+        return new Promise((resolve, reject) => {
+            const client = new IntentsClient({ keyFilename });
+            const name = client.intentPath(projectId, intentName)
+
+            client.deleteIntent({ name })
+                .then( result => {
+                    if (result) {
+                        resolve(result[0])
                     }
-                });
-            })
-            .catch( error => {
-                return res.status(500).json({
-                    status: "error",
-                    error: error
                 })
-            })
+                .catch( error => {
+                   if (error) {
+                       reject(error)
+                   }
+                })
+        })
     }
 
     public listAllIntents(req: Request, res: Response): void {

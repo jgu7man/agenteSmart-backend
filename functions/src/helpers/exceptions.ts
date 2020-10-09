@@ -9,13 +9,33 @@ export class ApplicationException extends Error {
     }
 }
 
-export const errorHandler = async (
-    error: Error | ApplicationException,
+function errorHandler(
+    error: ApplicationException,
     req: Request, 
-    res: Response 
-    ): Promise<void>  =>{
-        
-        console.error("Error en peticion: ", error);
-        res.status(500).send("Un error ocurrió");
+    res: Response) {
+    
+    console.log('Entre al manejo de Error')
+    console.error("Error en peticion: ", error);
+    // res.status(500).json({
+    //     "status": "Error",
+    //     "message": error.message,
+    //     "code": error.name
+    //     });
 
 }
+
+export default errorHandler;
+// export const errorHandler = async (
+//     error: Error | ApplicationException,
+//     req: Request, 
+//     res: Response 
+//     ): Promise<void>  =>{
+//     console.log('Entre al manejo de Error')
+//     console.error("Error en peticion: ", error);
+//     res.status(500).json({
+//         "status": "Error",
+//         "message": error.message,
+//         "code": error.name
+//         });
+
+// }

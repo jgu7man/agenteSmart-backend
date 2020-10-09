@@ -63,21 +63,29 @@ export default class SessionController {
             }
             // console.log(request);
             const response = await sessionClient.detectIntent(request);
-            req.body.agent = response;
+            // console.log("Antes de llegar a la asginacion: ", req.body);
+            req.body = { ...response[0], ...req.body, session: sessionPath};
+            console.log("despues de llegar a la asginacion: ", req.body);
             const agent = new WebhookClient({ request: req, response: res });
-            console.log(agent);
-        
-            // console.log({
-            //     intent: agent.intent,
-            //     Query: agent.query,
-            //     requesSource: agent.requestSource,
-            //     session: agent.session,
-            //     consoleMessages: agent.consoleMessages
-            // });
-            // console.log(response);
             
+            // const cuerpo = [{
+            //     responseId: 'a1d88574-918b-4aae-bf43-5c1e6369ac5b-d794dba9',
+            //     queryResult: [Object],
+            //     webhookStatus: "",
+            //     outputAudio: "",
+            //     outputAudioConfig: ""
+            // }];
+            console.log({
+                intent: agent.intent,
+                Query: agent.query,
+                requesSource: agent.requestSource,
+                session: agent.session,
+                consoleMessages: agent.consoleMessages
+            });
+        
+
         } catch (error) {
-            console.log(error);
+            console.error(error);
             res.status(500).send("Error making session")
         }
 

@@ -15,11 +15,13 @@ export default class IntentRoutes {
     }
 
     declareRoutes(): void {
-        this.router.post('/', this.intentController.createIntent);
+        this.router.route('/')
+            .post(this.intentController.createIntent)
+            .put(this.intentController.updateIntent)
+            .delete(this.intentController.deleteIntentWithParams)
 
         this.router.get('/:projectId', this.intentController.listAllIntents);
 
-        this.router.delete('/:intentId', this.intentController.deleteIntent);
-        this.router.put('/', this.intentController.updateIntent);
+        this.router.delete('/:intent/project/:projectId', this.intentController.deleteIntent);
     }
 }
