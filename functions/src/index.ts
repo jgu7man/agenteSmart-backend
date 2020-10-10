@@ -2,7 +2,7 @@ import * as functions from 'firebase-functions';
 import errorHandler from './helpers/exceptions';
 import express, { Application } from 'express';
 import cors from 'cors';
-import serviceAccount from "../lib/main-agentesmart-589511385b0d.json";
+import serviceAccount from "./secret/main-agentesmart-589511385b0d.json";
 
 export const keyFilename = serviceAccount;
 

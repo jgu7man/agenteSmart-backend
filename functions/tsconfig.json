@@ -15,7 +15,5 @@
     ]
   },
   "compileOnSave": true,
-  "include": [
-    "src"
-  ]
+  "rootDir": "src/"
 }
