@@ -1,5 +1,4 @@
-import { Response } from 'express';
-import { Request } from 'express';
+import { Response, Request } from 'express';
 import { keyFilename } from '../index';
 import { SessionsClient } from '@google-cloud/dialogflow';
 import asyncHandler from '../helpers/asyncHandler';

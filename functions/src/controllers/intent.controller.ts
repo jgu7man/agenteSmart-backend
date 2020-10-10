@@ -84,10 +84,11 @@ export  default class IntentController {
             
             const request = await this.deleteFromDialogFlow(intent, projectId);
             if (request) {
-                return res.status(204).end();
+                res.status(204).end();
+                return
             }
         } catch (error) {
-            if (error.code == 5) {
+            if (error.code === 5) {
                 res.status(404).json({
                     status: "Error",
                     name: "NOT INTENT AVAILABLE",
