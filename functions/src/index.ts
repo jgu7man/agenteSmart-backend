@@ -45,11 +45,11 @@ class app {
 		this.app.use(errorHandler);
 	}
 
-	public start(): void {
-		const listener = this.app.listen(3000, () => {
-			console.log(`Server up on port: ` + listener.address().port);
-		})
-	}
+	// public start(): void {
+	// 	const listener = this.app.listen(3000, () => {
+	// 		console.log(`Server up on port: ` + listener.address().port);
+	// 	})
+	// }
 }
 
 const server = new app();
