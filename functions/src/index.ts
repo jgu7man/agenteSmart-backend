@@ -1,10 +1,10 @@
 import * as functions from 'firebase-functions';
 import errorHandler from './helpers/exceptions';
-import path from "path";
 import express, { Application } from 'express';
 import cors from 'cors';
+import serviceAccount from "../lib/main-agentesmart-589511385b0d.json";
 
-export const keyFilename = path.join(__dirname +'/main-agentesmart-589511385b0d.json');
+export const keyFilename = serviceAccount;
 
 //routes
 import AgentRoutes from './routes/agentes.routes';
@@ -45,11 +45,11 @@ class app {
 		this.app.use(errorHandler);
 	}
 
-	// public start(): void {
-	// 	const listener = this.app.listen(3000, () => {
-	// 		console.log(`Server up on port: ` + listener.address().port);
-	// 	})
-	// }
+	public start(): void {
+		const listener = this.app.listen(3000, () => {
+			console.log(`Server up on port: ` + listener.address().port);
+		})
+	}
 }
 
 const server = new app();

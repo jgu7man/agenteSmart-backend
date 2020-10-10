@@ -10,7 +10,7 @@ export default class SessionController {
     
     intentAttempt = asyncHandler( async (req: Request, res: Response) => {
 
-        const sessionClient = new SessionsClient({ keyFilename });
+        const sessionClient = new SessionsClient( {credentials: keyFilename});
         const sessionId = (!req.params.sessionId) ? req.params.sessionId : uuidv4(); 
         const { projectId, textInput } = req.body;
 
@@ -44,7 +44,7 @@ export default class SessionController {
 
     public async detectIntent( req: Request, res: Response ): Promise<void> {
         try {   
-            const sessionClient = new SessionsClient({ keyFilename });
+            const sessionClient = new SessionsClient({ credentials: keyFilename });
             const sessionId = (req.params.sessionId) ? req.params.sessionId : uuidv4(); 
             const { projectId, textInput } = req.body;
     
