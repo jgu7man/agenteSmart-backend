@@ -18,7 +18,7 @@ export  default class IntentController {
         intent.webHookState = (typeof intent.webHookState === undefined) ? 0 : intent.webHookState;
 
         // let { name, displayName, webHookState, trainingPhrases, action, parameters } = req.body.intent; 
-        const client = new IntentsClient({ keyFilename });
+        const client = new IntentsClient({ credentials: keyFilename });
 
         const parent: string = client.agentPath(projectId);
         //falta validar los parametros (intent.Parameters: Array<IParameter>). 
@@ -49,7 +49,7 @@ export  default class IntentController {
     public updateIntent(req: Request, res: Response): void{
         //destructuring we can handle a 400 error here.
         const { intent, intentView} = req.body as { intent: IIntent, intentView: number };
-        const client = new IntentsClient({ keyFilename });
+        const client = new IntentsClient({ credentials: keyFilename });
         
         client.updateIntent({
             intent,
@@ -84,10 +84,11 @@ export  default class IntentController {
             
             const request = await this.deleteFromDialogFlow(intent, projectId);
             if (request) {
-                return res.status(204).end();
+                res.status(204).end();
+                return
             }
         } catch (error) {
-            if (error.code == 5) {
+            if (error.code === 5) {
                 res.status(404).json({
                     status: "Error",
                     name: "NOT INTENT AVAILABLE",
@@ -108,7 +109,7 @@ export  default class IntentController {
     private deleteFromDialogFlow(intentName: string, projectId: string):
         Promise<object>{
         return new Promise((resolve, reject) => {
-            const client = new IntentsClient({ keyFilename });
+            const client = new IntentsClient({ credentials: keyFilename });
             const name = client.intentPath(projectId, intentName)
 
             client.deleteIntent({ name })
@@ -136,7 +137,7 @@ export  default class IntentController {
             pageToken: string | null
         }
         const project: string = req.params.projectId;
-        const client = new IntentsClient({ keyFilename });
+        const client = new IntentsClient({ credentials: keyFilename });
 
         const parent = client.agentPath(project);
 

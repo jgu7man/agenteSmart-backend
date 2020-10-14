@@ -6,7 +6,7 @@ import { IEntityCreateReq, IListEntityTypes } from "../interfaces/entity";
 
 export default class EntityController {
     public createEntity( req: Request, res: Response ): void {
-        const client = new EntityTypesClient({ keyFilename });
+        const client = new EntityTypesClient({ credentials: keyFilename });
         try {
             const projectId = req.params.projectId || req.body.projectId; 
             const parent = client.agentPath(projectId);
@@ -46,7 +46,7 @@ export default class EntityController {
                 updateMask = null 
             } = req.body;
 
-            const client = new EntityTypesClient({ keyFilename });
+            const client = new EntityTypesClient({ credentials:keyFilename });
             
             const request = {
                 entityType,
@@ -82,7 +82,7 @@ export default class EntityController {
             const entityId: string = req.params.entityId || req.body.entityId;
             const projectId: string = req.body.projectId || req.params.projectId;
 
-            const client = new EntityTypesClient({ keyFilename });
+            const client = new EntityTypesClient({ credentials: keyFilename });
 
             const name = client.entityTypePath(
                 projectId,
@@ -116,7 +116,7 @@ export default class EntityController {
     public async listEntities(req: Request, res: Response): Promise<void> {
         const projectId:string = req.params.projectId;
 
-        const client = new EntityTypesClient({ keyFilename });
+        const client = new EntityTypesClient({ credentials: keyFilename });
 
         const parent = client.agentPath(projectId);
 
