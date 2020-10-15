@@ -11,14 +11,14 @@ import AgentRoutes from './routes/agentes.routes';
 import IntentRoutes from './routes/intent.routes';
 import entityRoutes from './routes/entity.routes';
 import SessionRoutes from './routes/session.routes';
-
+import { config } from "dotenv";
 class app {
 	
 	public app: Application;
 	
 	constructor () {
+		config()
 		this.app = express()
-
 		this.initMiddleware()
 		this.initRoutes()
 		this.initErrorHandler()
