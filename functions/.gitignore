@@ -7,7 +7,7 @@ typings/
 node_modules/
 /lib/
 /out/
-/src/secret/
+
 
 lauch.json
 
