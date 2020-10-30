@@ -8,3 +8,9 @@ node_modules/
 /lib/
 /out/
 /src/secret/
+
+lauch.json
+
+*/*.log
+
+.vscode/

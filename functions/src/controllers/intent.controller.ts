@@ -1,5 +1,5 @@
+import { IntentView, ITrainingPhrase, IType, IParameter } from './../interfaces/agent.interface';
 import { IntentsClient } from '@google-cloud/dialogflow';
-
 import { Request, Response  } from "express";
 import asyncHandler from '../helpers/asyncHandler';
 // ITrainingPhrase, 
@@ -13,7 +13,7 @@ import {
 export  default class IntentController {
     public createIntent(req: Request, res: Response): void{
 
-        const { intent, projectId } = req.body as { projectId: string, intent: IIntent};
+        const { intent, projectId } = req.body as { projectId: string, intent: Partial<IIntent>};
         //set webHook if its not provided:
         intent.webHookState = (typeof intent.webHookState === undefined) ? 0 : intent.webHookState;
 
@@ -46,30 +46,87 @@ export  default class IntentController {
 
     }
 
-    public updateIntent(req: Request, res: Response): void{
-        //destructuring we can handle a 400 error here.
-        const { intent, intentView} = req.body as { intent: IIntent, intentView: number };
-        const client = new IntentsClient({ credentials: keyFilename });
-        
-        client.updateIntent({
-            intent,
-            intentView
-        }).then( async result => {
-            //inmutable data :P
-            const updatedIntent = {...result[0]};
-            await client.close();
-            return res.status(200).json({
-                status: "Success",
-                result: updatedIntent
-            });
-        }).catch( error => {
-            return res.status(500).json({
-                status: "error",
-                error
-            })
-        });
+    public updateIntent = async (req: Request, res: Response) => {
+      //destructuring we can handle a 400 error here.
+      const intent: IIntent = req.body.intent;
+      const intentToUpdate = { ...intent };
+      console.info('Recived as Intent to updated:', intentToUpdate);
+      const trainingPhrases = this.mergeParts(req.body.intent.trainingPhrases);
+      const parameters = this.checkForParameters(req.body.intent.parameters);
+      intent.trainingPhrases = <Array<ITrainingPhrase|null>>trainingPhrases;
+      intent.parameters = parameters;
+      console.log('Recived this as trainingPhrase:', trainingPhrases)
+      this.updatedIntent(intent).then(result => {
+          console.info('Resultado de la operacion:', result)
+          res.status(200).json({
+              intent
+          })
+          return true;
+      }).catch(err => {
+          console.error('Error aqui');
+          res.status(400).json({
+              error: err,
+              message:"dificil procedimiento"
+          })
+      })
+
+  }
+  private mergeParts = (trainingPhrases: [ITrainingPhrase]) => {
+    // const mapped = trainingPhrases.map(phrase => {
+    //   const mappedParts: Array<ITrainingPhrase> = phrase.parts.map(part => { 
+    //     if (part.entityType) {
+    //       part.entityType = "@" + part.entityType;
+    //     }
+    //   })
+    //   phrase.parts = mappedParts;
+    //   return phrase;
+    // })
+    const trainingPhrasesFixed = [];
+
+    for (const trainingPhrase of trainingPhrases) {
+      const partes = [];
+      for (const part of trainingPhrase.parts) {
+        if (part.entityType !== undefined && part.entityType) {
+          partes.push({ ...part, entityType: (part.entityType.startsWith('@') )? part.entityType : '@' + part.entityType })
+        }
+      }
+      trainingPhrasesFixed.push({
+        type: <IType>trainingPhrase.name,
+        parts: partes
+      })
     }
-    
+    console.info('Returned Pharases:', trainingPhrasesFixed)
+    return trainingPhrasesFixed;
+  }
+  private checkForParameters = (parameters: Array<IParameter>) => {
+    if (parameters.length < 1) return parameters;
+    for (const parameter of parameters) {
+      if (parameter) {
+        parameter.value = parameter.value.startsWith('$')? parameter.value : `$${parameter.value}`
+      }
+      console.info('Parametros seteados su valor: ', parameter)
+    }
+    return parameters;
+  }
+    private updatedIntent = async (intent: IIntent) => {
+      const client = new IntentsClient({ credentials: keyFilename });
+
+      const request = {
+          intent: intent,
+          intentView: <IntentView>"INTENT_VIEW_FULL"
+      }
+      try {
+          const responses = await client.updateIntent(request);
+          return new Promise((resolve, reject) => {
+              resolve(responses[1])
+          })
+      } catch (err) {
+          console.error(err)
+          return new Promise((resolve, reject) => {
+              reject(err)
+          })
+      }
+    }
     public deleteIntentWithParams = asyncHandler( async (req: Request, res: Response) => {
         const { intent, projectId } = req.query as {intent: string, projectId: string}
         const request = await this.deleteFromDialogFlow(intent, projectId);

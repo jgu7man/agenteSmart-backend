@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import SessionController from '../controllers/asdasd';
+import SessionController from '../controllers/session.controller';
 
 export default class SessionRoutes{
     public router: Router;
@@ -14,6 +14,7 @@ export default class SessionRoutes{
     declareRoutes(): void {
         // this.router.post('/detectInput', this.sessionController.intentAttempt)
         this.router.post('/', this.sessionController.detectIntent);
+        this.router.post('/:sessionId', this.sessionController.detectIntent);
     }
 
 }

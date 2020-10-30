@@ -30,17 +30,6 @@ export interface IPreProject {
     projectId: string;
 }
 
-export interface IIntent {
-    name?: string;
-    displayName: string;
-    webHookState: number;
-    trainingPhrases: Array<ITrainingPhrase>;
-    action?: string;
-    parameters?: Array<IParameter>;
-    messages?: Array<object>;
-    isFallback?: boolean;
-}
-
 export interface IParameter {
     name: string;
     displayName: string;
@@ -52,15 +41,38 @@ export interface IParameter {
     isList: boolean;
 }
 
-export interface ITrainingPhrase {
-    name: string;
-    type: number;
-    parts: Array<IPart>;
-}
+export type IType = "TYPE_UNSPECIFIED" | "EXAMPLE" | "TEMPLATE";
 
 export interface IPart {
-    text: string;
-    entityType: string;
+    text?: string;
+    entityType?: string;
     alias?: string;
-    userDefine?: boolean;
+    userDefined?: boolean;
+}
+export interface ITrainingPhrase {
+    name?: string;
+    type: IType;
+    parts: [IPart];
+}
+
+export type IntentView = "INTENT_VIEW_UNSPECIFIED" | "INTENT_VIEW_FULL";
+
+export interface IIntent {
+    name?: string;
+    displayName: string;
+    webHookState: number;
+    trainingPhrases?: Array<ITrainingPhrase>;
+    action?: string;
+    parameters?: Array<IParameter>;
+    messages?: Array<object>;
+    isFallback?: boolean;
+    events?: Array<string>;
+    rootFollowupIntentName: string;
+    parentFollowupIntentName: string;
+    followupIntentInfo: [FollowupIntentInfo]
+}
+
+interface FollowupIntentInfo {
+    followupIntentName: string;
+    parentFollowupIntentName: string;
 }
