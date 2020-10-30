@@ -49,13 +49,10 @@ export  default class IntentController {
     public updateIntent = async (req: Request, res: Response) => {
       //destructuring we can handle a 400 error here.
       const intent: IIntent = req.body.intent;
-      const intentToUpdate = { ...intent };
-      console.info('Recived as Intent to updated:', intentToUpdate);
       const trainingPhrases = this.mergeParts(req.body.intent.trainingPhrases);
       const parameters = this.checkForParameters(req.body.intent.parameters);
       intent.trainingPhrases = <Array<ITrainingPhrase|null>>trainingPhrases;
       intent.parameters = parameters;
-      console.log('Recived this as trainingPhrase:', trainingPhrases)
       this.updatedIntent(intent).then(result => {
           console.info('Resultado de la operacion:', result)
           res.status(200).json({
@@ -95,7 +92,6 @@ export  default class IntentController {
         parts: partes
       })
     }
-    console.info('Returned Pharases:', trainingPhrasesFixed)
     return trainingPhrasesFixed;
   }
   private checkForParameters = (parameters: Array<IParameter>) => {
@@ -104,7 +100,6 @@ export  default class IntentController {
       if (parameter) {
         parameter.value = parameter.value.startsWith('$')? parameter.value : `$${parameter.value}`
       }
-      console.info('Parametros seteados su valor: ', parameter)
     }
     return parameters;
   }
@@ -222,6 +217,6 @@ export  default class IntentController {
         })
 
 
-    }
+  };
     
 }
