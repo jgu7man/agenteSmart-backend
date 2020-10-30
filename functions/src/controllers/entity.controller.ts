@@ -55,7 +55,7 @@ export default class EntityController {
             };
             client.updateEntityType(request)
               .then( async result => {
-                    res.status(200).json({
+                    res.status(204).json({
                       status: "Success",
                       result: result[0]
                     })
@@ -91,11 +91,12 @@ export default class EntityController {
             await client.deleteEntityType({ name })
               .then( async result => {
                   await client.close();
-                  res.status(200).json({
-                      status: "Success",
-                      result: result[0],
-                      message: `Entity with path:${name} has been deconsted`
-                  });
+                  res.status(204).end();
+                //   json({
+                //       status: "Success",
+                //       result: result[0],
+                //       message: `Entity with path:${name} has been deconsted`
+                //   });
               })
               .catch( error => {
                 res.status(500).json({

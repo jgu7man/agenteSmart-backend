@@ -16,11 +16,11 @@ function errorHandler(
     
     console.log('Entre al manejo de Error')
     console.error("Error en peticion: ", error);
-    // res.status(500).json({
-    //     "status": "Error",
-    //     "message": error.message,
-    //     "code": error.name
-    //     });
+    res.status(500).json({
+        "status": "Error",
+        "message": error.message,
+        "code": error.name
+        });
 
 }
 
