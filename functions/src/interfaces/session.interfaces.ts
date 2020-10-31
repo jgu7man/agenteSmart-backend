@@ -23,8 +23,8 @@ export interface PreDefinedOutput {
   
   }
   export interface SearchOutput extends PreDefinedOutput {
-      rutaDB:string
-      parametro: string;
+    rutaDB:string
+    parametro: string;
   
   }
   
@@ -34,7 +34,7 @@ export interface PreDefinedOutput {
       parametro: string;
   
   }
-export type OutputMessage = 
+export type OutputMessage =
     | PreDefinedOutput
     | DataParty
     | SearchOutput
@@ -66,19 +66,27 @@ export interface Context {
 export interface QueryResult {
     queryText: string | null;
     action: string | null;
-    parameters:object |null | ParameterFromQueryResult<any>  ;
+    parameters?: null | Object | Map<string, any> | ParameterFromQueryResult;
     webhookSource: string| null;
     webhookPayload: object | null;
     outputContexts: Array<Context> | null;
     allRequiredParamsPresent: boolean | null;
     intent: Partial<IIntent>;
     fulfillmentText: string;
-
+    clientId?: string;
+    sessionId?: string;
+    projectId?: string;
 }
 
-export interface ParameterFromQueryResult<T> {
-    fields:  Map<string, T> | null
+export interface ParameterFromQueryResult{
+    fields: fromDialogflowApi<any> | object
 }
+
+interface fromDialogflowApi<T> {
+    kind: T,
+    T: any;
+}
+
 
 //PARAMETROS DE API DE DIALOGFLOW
 //ESTOS PARAMETROS ES UN MAP DE LA ESTRUCTURA CON SU KEY
