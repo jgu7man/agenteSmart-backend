@@ -151,8 +151,8 @@ export default class SessionController {
     
     if (!parametersToEvaluate && arrayOfAnswer.length > 1) {
       arrayOfAnswer.forEach(x => {
-        if (x.tipo === "predefinida") {
-          promisesToHandle.push(this._validatePredefinida(x.outputMessage, x.outputContext))
+        if (x.tipo === "simple") {
+          promisesToHandle.push(this._validatesimple(x.result, x.outputContext))
         }
       });
     }
@@ -160,16 +160,16 @@ export default class SessionController {
       for (const element of arrayOfAnswer) {
         switch (element.tipo) {
           case 'grupo_datos':
-            promisesToHandle.push(this._validateDataGroup(<DataParty>element.outputMessage, element.outputContext, parametersToEvaluate));
+            promisesToHandle.push(this._validateDataGroup(<DataParty>element.result, element.outputContext, parametersToEvaluate));
             break;
           case 'buscar':
-            promisesToHandle.push(this._validateSearch(<SearchOutput>element.outputMessage, queryResult ,element.outputContext))
+            promisesToHandle.push(this._validateSearch(<SearchOutput>element.result, queryResult ,element.outputContext))
             break;
           case 'condicional':
-            promisesToHandle.push(this._validateConditional(<ContionalOutput>element.outputMessage, element.outputContext, parametersToEvaluate))
+            promisesToHandle.push(this._validateConditional(<ContionalOutput>element.result, element.outputContext, parametersToEvaluate))
             break;
-          case 'predefinida':
-            promisesToHandle.push(this._validatePredefinida(element.outputMessage, element.outputContext))
+          case 'simple':
+            promisesToHandle.push(this._validatesimple(element.result, element.outputContext))
             break;
           default:
             throw new Error('Esa respuesta no la pude procesar');
@@ -275,7 +275,7 @@ export default class SessionController {
     } 
     return null;
   }
-  private _validatePredefinida = async (responseToValidate: PreDefinedOutput, exitContext: string): Promise<ApiMessagesSucceeded | null> => {
+  private _validatesimple = async (responseToValidate: PreDefinedOutput, exitContext: string): Promise<ApiMessagesSucceeded | null> => {
     if (typeof responseToValidate !== undefined) {
       return { ...responseToValidate, outputContext: exitContext };
     }

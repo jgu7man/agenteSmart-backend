@@ -34,7 +34,7 @@ export interface PreDefinedOutput {
       parametro: string;
   
   }
-export type OutputMessage =
+export type result =
     | PreDefinedOutput
     | DataParty
     | SearchOutput
@@ -42,7 +42,7 @@ export type OutputMessage =
     
 type TypeOfAnswer =
     | 'buscar'
-    | 'predefinida'
+    | 'simple'
     | 'condicional'
     | 'grupo_datos';
   
@@ -52,7 +52,7 @@ type TypeOfAnswer =
     inputContext: string;
     outputContext: string;
     tipo: TypeOfAnswer;
-    outputMessage: OutputMessage;
+    result: result;
 }
 
 //parameters puede ser un objeto con diferente estrcutura,
@@ -93,6 +93,6 @@ interface fromDialogflowApi<T> {
 // ES DEECIR<STRING, | LISTAS| STRING | MAP/object | NULL | BOOLEAN>
 export type GetDocs<doc> = Partial<doc>
 
-export type ApiMessagesSucceeded = OutputMessage & {
+export type ApiMessagesSucceeded = result & {
     outputContext: string
 }
