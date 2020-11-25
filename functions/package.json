@@ -4,7 +4,7 @@
     "lint": "tslint --project tsconfig.json",
     "build": "tsc",
     "dev": "tsc-watch --onSuccess \"node --inspect lib/index.js\"",
-    "hotReload": "npm run build && firebase emulators:start --inspect-functions",
+    "hotReload": "npm run build && firebase emulators:start --inspect-functions --only firestore",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",

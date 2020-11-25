@@ -49,10 +49,22 @@ export default class SessionController {
         projectId
       }
           
-      const getRespuestas = await this.retriveMessagesFromFireStore(clientId, projectId, sessionResult.intent.name)
-      if (getRespuestas) {
-        const controllerPerformance = await this.ManageResponsesController(getRespuestas, sessionResult)
+      const getRespuestas = await
+        this.retriveMessagesFromFireStore(
+          clientId,
+          projectId,
+          sessionResult.intent.name
+        );
 
+      console.log({getRespuestas})
+      if (getRespuestas) {
+        const controllerPerformance = await
+          this.ManageResponsesController(
+            getRespuestas,
+            sessionResult
+          )
+
+          console.log({controllerPerformance});
         // console.info("\n\tExito!\n\tSe han retornado las siguientes respuestas:\n\t\t", controllerPerformance)
         res.status(200).json({
           message: "Exito",
@@ -72,22 +84,32 @@ export default class SessionController {
 
   }
 
-  private async retriveMessagesFromFireStore(clientId: string, idProject: string, intentName: string): Promise<Array<ResponseFromFirebase | null>> {
+  private async retriveMessagesFromFireStore(
+    clientId: string,
+    idProject: string,
+    intentName: string
+  ): Promise<Array<ResponseFromFirebase | null>> {
     // /usuarios/{idUser}/agentes/{idProject}/mensajes/{intentName}/respuestas
     const idName = intentName.slice(intentName.lastIndexOf('/') + 1);
+    console.log(idName);
     const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
     // console.info('\nPath a la collection es:\t ', pathToCollection)
     const firestore = this.auth.firestore();
       
     const intentRef = firestore.collection(pathToCollection);
-    const documents = []
-
-    const responses = await intentRef.get();
+    const documents:any[] = []
     
-    for (const doc of responses.docs) {
+    const responses = await intentRef.get();
+    console.log(responses.size);
+    responses.forEach(doc => {
+      console.log(doc.data());
+      documents.push(doc.data())
+    })
+    
+    // for (const doc of responses.docs) {
         
-      documents.push(<ResponseFromFirebase>doc.data())
-    }
+    //   documents.push(<ResponseFromFirebase>doc.data())
+    // }
     return documents;
   }
 
@@ -141,10 +163,19 @@ export default class SessionController {
   }
   
 
-  protected ManageResponsesController = async (arrayOfAnswer: Array<ResponseFromFirebase>, queryResult: QueryResult) => {
-    const parametersToEvaluate = this._parsedResponseFromDialogflow(<ParameterFromQueryResult>queryResult.parameters)
+  protected ManageResponsesController = async (
+    arrayOfAnswer: Array<ResponseFromFirebase>,
+    queryResult: QueryResult
+  ) => {
+
+    const parametersToEvaluate =
+      this._parsedResponseFromDialogflow(
+        <ParameterFromQueryResult> queryResult.parameters
+      )
     //setNewParams
     queryResult.parameters = parametersToEvaluate;
+    console.log(parametersToEvaluate);
+
     const promisesToHandle: Array<Promise<ApiMessagesSucceeded>> = [];
     // const parameterArray = queryResult.parameters;
     // this._currentQueryResult.parameters.forEach( function(obj) {
@@ -152,12 +183,13 @@ export default class SessionController {
     if (!parametersToEvaluate && arrayOfAnswer.length > 1) {
       arrayOfAnswer.forEach(x => {
         if (x.tipo === "simple") {
-          promisesToHandle.push(this._validatesimple(x.result, x.outputContext))
+          promisesToHandle.push(this._validateSimple(x.result, x.outputContext))
         }
       });
     }
     else {
       for (const element of arrayOfAnswer) {
+        console.log(element);
         switch (element.tipo) {
           case 'grupo_datos':
             promisesToHandle.push(this._validateDataGroup(<DataParty>element.result, element.outputContext, parametersToEvaluate));
@@ -169,7 +201,7 @@ export default class SessionController {
             promisesToHandle.push(this._validateConditional(<ContionalOutput>element.result, element.outputContext, parametersToEvaluate))
             break;
           case 'simple':
-            promisesToHandle.push(this._validatesimple(element.result, element.outputContext))
+            promisesToHandle.push(this._validateSimple(element.result, element.outputContext))
             break;
           default:
             throw new Error('Esa respuesta no la pude procesar');
@@ -211,8 +243,8 @@ export default class SessionController {
   private _validateSearch = async (responseToValidate: SearchOutput, queryResult:QueryResult , outputCtx: string): Promise<ApiMessagesSucceeded | null> => {
     const _hashOfParams = <Map<string, any>>queryResult.parameters;
     //condicion: si existe rutaDb y si existe ParamName dentro de Los parametros retornados.
-    if (responseToValidate.rutaDB && _hashOfParams.get(responseToValidate.parametro)) {
-      const pathToCollection = `/usuarios/${queryResult.clientId}/agentes/${queryResult.projectId}/tarjetas/${responseToValidate.rutaDB}`
+    if (responseToValidate.database && _hashOfParams.get(responseToValidate.parametro)) {
+      const pathToCollection = `/usuarios/${queryResult.clientId}/${responseToValidate.database}`
       const firestore = this.auth.firestore();
       const databaseRef = await firestore.collection(pathToCollection).get()
       const data = [];
@@ -248,7 +280,7 @@ export default class SessionController {
           
           break;
         case 'menor o igual que':
-          if (current >= responseToValidate.valor) resolve = true;
+          if (current <= responseToValidate.valor) resolve = true;
           
           break;
         case 'existe':
@@ -269,13 +301,13 @@ export default class SessionController {
   private _validateDataGroup = async (responseToValidate: DataParty, outputCtx: string, parameters: Map<string, any> ): Promise<ApiMessagesSucceeded | null> => {
     const current = parameters.get(responseToValidate.parametro);
 
-    if (current && current=== responseToValidate.key) {
-      await this._createContext(responseToValidate.grupoDatos);
+    if (current && current === responseToValidate.key) {
+      await this._createContext(responseToValidate.coleccion);
       return {...responseToValidate, outputContext: outputCtx}
     } 
     return null;
   }
-  private _validatesimple = async (responseToValidate: PreDefinedOutput, exitContext: string): Promise<ApiMessagesSucceeded | null> => {
+  private _validateSimple = async (responseToValidate: PreDefinedOutput, exitContext: string): Promise<ApiMessagesSucceeded | null> => {
     if (typeof responseToValidate !== undefined) {
       return { ...responseToValidate, outputContext: exitContext };
     }

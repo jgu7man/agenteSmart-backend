@@ -23,13 +23,13 @@ export interface PreDefinedOutput {
   
   }
   export interface SearchOutput extends PreDefinedOutput {
-    rutaDB:string
+    database:string
     parametro: string;
   
   }
   
  export interface DataParty extends PreDefinedOutput {
-      grupoDatos: string;
+      coleccion: string;
       key: string;
       parametro: string;
   
