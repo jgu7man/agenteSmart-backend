@@ -12,30 +12,29 @@ type Condition =
  
 
 // Defined types for array of answers received from firestore
-export interface PreDefinedOutput {
-    estiloRespuesta: string;
-    respuesta: object | string;
-  }
- export interface ContionalOutput extends PreDefinedOutput{
-      condicion: Condition;
-      valor: string
-      parametro: string;
-  
-  }
-  export interface SearchOutput extends PreDefinedOutput {
+export interface SimpleOutput {
+    text: string;
+    suggests: Suggest[],
+}
+export interface ContionalOutput extends SimpleOutput {
+    condicion: Condition;
+    valor: string
+    parametro: string;
+}
+export interface SearchOutput extends SimpleOutput  {
     database:string
     parametro: string;
-  
-  }
-  
- export interface DataParty extends PreDefinedOutput {
-      coleccion: string;
-      key: string;
-      parametro: string;
-  
-  }
+    card: object
+}
+export interface DataParty extends SimpleOutput  {
+    coleccion: string;
+    key: string;
+    parametro: string;
+    suggests: Suggest[]
+}
+
 export type result =
-    | PreDefinedOutput
+      SimpleOutput
     | DataParty
     | SearchOutput
     | ContionalOutput;
@@ -80,6 +79,11 @@ export interface QueryResult {
 
 export interface ParameterFromQueryResult{
     fields: fromDialogflowApi<any> | object
+}
+
+export interface Suggest {
+    text: string
+    context:string
 }
 
 interface fromDialogflowApi<T> {

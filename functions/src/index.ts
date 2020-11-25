@@ -48,6 +48,7 @@ class app {
 	public start(): void {
 		const listener = this.app.listen(3000, () => {
 			console.log(`Server up on port: ` + listener.address().port);
+			console.log(new Date());
 		})
 	}
 }
