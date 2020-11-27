@@ -1,19 +1,21 @@
 import {
 	SimpleOutput,
 	QueryResult,
-	ContionalOutput,
+	ContionalOutput as ConditionalOutput,
 	ApiMessagesSucceeded,
 	ResponseFromFirebase,
 	ParameterFromQueryResult,
 	Context,
 	SearchOutput,
 	DataParty,
+	Card
 } from "./../interfaces/session.interfaces";
 import { Response, Request } from "express";
 import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
 import { v4 as uuidv4 } from "uuid";
 import * as admin from "firebase-admin";
 import { keyFilename } from "../index";
+import {IntentDetectedParam, SysInterface, SystemType} from "../interfaces/parameter.interface";
 
 export default class SessionController {
 	private auth: admin.app.App;
@@ -46,12 +48,11 @@ export default class SessionController {
 			};
 
 			//Inicia la secuenia
-			// console.log(request);
+			
 			const response = await sessionClient.detectIntent(request).then(result => result[0]);
 
 			// console.log('Respuesta de Dialogflow', response.queryResult);
 			// console.log(response.queryResult.intent.parameters)
-			console.log('\x1b[34m%s\x1b[37m','parametros del intent', response.queryResult.intent.parameters)
 			// console.log("Antes de llegar a la asginacion: ", req.body);
 			// const agent = new WebhookClient({ request: req, response: res });
 			const sessionResult = <QueryResult>{
@@ -100,10 +101,8 @@ export default class SessionController {
 	): Promise<Array<ResponseFromFirebase | null>> {
 		// /usuarios/{idUser}/agentes/{idProject}/mensajes/{intentName}/respuestas
 		const idName = intentName.slice(intentName.lastIndexOf("/") + 1);
-		
 
 		const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
-		
 
 		const firestore = this.auth.firestore();
 
@@ -119,28 +118,33 @@ export default class SessionController {
 		return respuestas;
 	}
 
-	
-
+	// ANCHOR Parameters of detect intent
 	private _parsedResponseFromDialogflow = (parameters: ParameterFromQueryResult) => {
 		const newIterator = Object.entries(parameters.fields);
 
 		return new Map(
 			newIterator.map(x => {
 				// console.log('\x1b[33m%s\x1b[37m', 'x', x)
-				if (x[1]['kind'] == 'structValue') {
-					let object = x[1]['structValue']['fields']
-					'name' in object
-					console.log('\x1b[32m%s\x1b[37m','fields', object)
-				}
-				const paramName = x[0];
 				const paramValueTypeName = x[1]["kind"];
-				const paramValue = x[1][paramValueTypeName];
+				const paramName = x[0];
+				const paramValue =
+					paramValueTypeName == "structValue"
+						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
+						: x[1][paramValueTypeName];
+
+				console.log("\x1b[32m%s\x1b[37m", "fields", paramValue);
+
 				return [paramName, paramValue];
 			})
 		);
 	};
 
-	protected ManageResponsesController = async (arrayOfAnswer: Array<ResponseFromFirebase>, queryResult: QueryResult, clientId: string) => {
+	// ANCHOR actions map responses
+	protected ManageResponsesController = async (
+		arrayOfAnswer: Array<ResponseFromFirebase>,
+		queryResult: QueryResult,
+		clientId: string
+	) => {
 		const parametersToEvaluate = this._parsedResponseFromDialogflow(
 			<ParameterFromQueryResult>queryResult.parameters
 		);
@@ -161,8 +165,7 @@ export default class SessionController {
 						this._validateDataGroup(
 							<DataParty> element.result,
 							element.outputContext,
-							parametersToEvaluate
-						)
+							parametersToEvaluate)
 					);
 					break;
 				case "buscar":
@@ -178,14 +181,19 @@ export default class SessionController {
 				case "condicional":
 					promisesToHandle.push(
 						this._validateConditional(
-							<ContionalOutput>element.result,
+							<ConditionalOutput>element.result,
 							element.outputContext,
 							parametersToEvaluate
 						)
 					);
 					break;
 				case "simple":
-					promisesToHandle.push(this._validateSimple(<SimpleOutput>element.result, element.outputContext));
+					promisesToHandle.push(
+						this._validateSimple(
+							<SimpleOutput> element.result,
+							element.outputContext
+						)
+					);
 					break;
 				default:
 					throw new Error("Esa respuesta no la pude procesar");
@@ -220,34 +228,29 @@ export default class SessionController {
 		return answers;
 		// const responsesReturned = await this._controllerResponse();
 		// return responsesReturned;
-	};;
+	};
 
-
-	private _replaceParameters(_paramsMap: Map<string, any>,text_:string) {
-		if (text_.includes('$')) {
-			let posibleVariable = text_
-				.split('$')[1].split(' ')[0].split('.')
+	// ANCHOR Replace parameters in text
+	private _replaceParameters(_paramsMap: Map<string, any>, text_: string) {
+		if (text_.includes("$")) {
+			let posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
 			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
-			let variable = posibleVariable[0]
-				// = posibleVariable.length < 2
-				// ? posibleVariable[0]
-				// : posibleVariable[1] != ''
-				// 	? `${posibleVariable[0]}.${posibleVariable[1]}`
-				// 	: posibleVariable[0];
-			console.log('\x1b[35m%s\x1b[37m','variable', variable)
-			let value = _paramsMap.get(variable)
+			let variable = posibleVariable[0];
+
+			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
+			console.log(posibleVariable);
+			let value = _paramsMap.get(variable);
 			text_ = text_.replace(
 				posibleVariable.length > 1
-					? posibleVariable[1] == 'original'
+					? posibleVariable[1] == "original"
 						? `$${variable}.original`
 						: `$${variable}`
 					: `$${variable}`,
 				value
-			)
-			// console.log('\x1b[32m%s\x1b[37m', "text replaced: ", text_);
-			
+			);
+			console.log('\x1b[32m%s\x1b[37m', "text replaced: ", text_);
 		}
-		return text_
+		return text_;
 	}
 
 	private _validateSearch = async (
@@ -257,8 +260,12 @@ export default class SessionController {
 		clientId: string
 	): Promise<ApiMessagesSucceeded | null> => {
 		// **************************************** //
+		var value = parameters.get(responseToValidate.parametro)
+		console.log( '\x1b[33m%s\x1b[37m%s', 'search criteria',{database: responseToValidate.database,value});
+		// console.log();
 
-		if (responseToValidate.database && parameters.get(responseToValidate.parametro)) {
+		if (responseToValidate.database && value ) {
+			console.log('response with search');
 			const pathToCollection = `/usuarios/${clientId}/${responseToValidate.database}`;
 
 			const firestore = this.auth.firestore();
@@ -269,80 +276,91 @@ export default class SessionController {
 			const data = [];
 
 			for (const document of databaseRef.docs) {
-				data.push(<any>document.data());
+				data.push(<any>document.data() as Card);
 			}
 
-			
-
-			return { ...responseToValidate, card: data, outputContext: outputCtx };
+			return {
+				text: responseToValidate.text,
+				cards: data,
+				outputContext: outputCtx
+			};
 		}
 		return null;
 	};
 
 	private _validateConditional = async (
-		responseToValidate: ContionalOutput,
-		exitContext: string,
+		responseToValidate: ConditionalOutput,
+		outputContext: string,
 		parameters: Map<string, any>
 	): Promise<ApiMessagesSucceeded | null> => {
 		let resolve = false;
-		const current = parameters.get(responseToValidate.parametro);
-		// console.log(`Valor del paramName: ${responseToValidate.parametro}, valor del value a evaluar:${current}`);
-		if (current) {
+		const value = parameters.get(responseToValidate.parametro);
+		console.log('\x1b[36m%s\x1b[37m', 'condition criteria',{value, criterio: responseToValidate.valor, param: responseToValidate.parametro});
+		
+		if (value) {
+			console.log(value);
 			switch (responseToValidate.condicion) {
 				case "igual a":
-					if (current === responseToValidate.valor) resolve = true;
+					if (value === responseToValidate.valor) resolve = true;
 					break;
 				case "diferente a":
-					if (current !== responseToValidate.valor) resolve = true;
+					if (value !== responseToValidate.valor) resolve = true;
 					break;
 				case "mayor que":
-					if (current > responseToValidate.valor) resolve = true;
+					if (value > responseToValidate.valor) resolve = true;
 					break;
 				case "menor que":
-					if (current < responseToValidate.valor) resolve = true;
+					if (value < responseToValidate.valor) resolve = true;
 					break;
 				case "mayor o igual que":
-					if (current >= responseToValidate.valor) resolve = true;
-
+					if (value >= responseToValidate.valor) resolve = true;
 					break;
 				case "menor o igual que":
-					if (current <= responseToValidate.valor) resolve = true;
-
+					if (value <= responseToValidate.valor) resolve = true;
 					break;
 				case "existe":
-					if (current.includes(responseToValidate.valor)) resolve = true;
+					if (value.includes(responseToValidate.valor)) resolve = true;
 					break;
 				case "no existe":
-					if (!current.includes(responseToValidate.valor)) resolve = true;
+					if (!value.includes(responseToValidate.valor)) resolve = true;
 					break;
 				default:
 					break;
 			}
 		}
 		if (resolve) {
-			return { ...responseToValidate, outputContext: exitContext };
+			console.log('Response with condition');
+			return { ...responseToValidate, outputContext };
 		}
 		return null;
 	};
 	private _validateDataGroup = async (
 		responseToValidate: DataParty,
-		outputCtx: string,
+		outputContext: string,
 		parameters: Map<string, any>
 	): Promise<ApiMessagesSucceeded | null> => {
-		const current = parameters.get(responseToValidate.parametro);
 
-		if (current && current === responseToValidate.key) {
+		const value = parameters.get(responseToValidate.parametro);
+		
+		console.log('\x1b[32m%s\x1b[37m','DataGroup Criteria',{current: value, key: responseToValidate.key});
+		
+		if (value) {
+			console.log('response with datagroup');
 			await this._createContext(responseToValidate.coleccion);
-			return { ...responseToValidate, outputContext: outputCtx };
+			return { ...responseToValidate, outputContext };
 		}
 		return null;
 	};
 	private _validateSimple = async (
 		responseToValidate: SimpleOutput,
-		exitContext: string
+		outputContext: string
 	): Promise<ApiMessagesSucceeded | null> => {
+		
+		console.log('\x1b[34m%s\x1b[37m', 'simple criteria');
+		console.log(responseToValidate);
+		
 		if (typeof responseToValidate !== undefined) {
-			return { ...responseToValidate, outputContext: exitContext };
+			return { ...responseToValidate, outputContext };
 		}
 		return null;
 	};
@@ -360,5 +378,56 @@ export default class SessionController {
 		return new Promise((resolve, reject) => {
 			resolve(contextCreated[0]);
 		});
+	}
+
+	private types = new Map<string, SystemType>([
+		["startDateTime", "datetimeperoid"],
+		["street-address", "location"],
+		["startDate", "dateperiod"],
+		["startTime", "timeperiod"],
+		["date_time", "datetime"],
+		["currency", "unitcurrency"],
+		["unit", "duration"],
+		["name", "person"],
+	]);
+
+	private _getSystemEntityTypeName(object: IntentDetectedParam): SystemType {
+		var entityTypeName: SystemType;
+
+		for (var key of this.types.keys()) {
+			if (key in object) {
+				entityTypeName = this.types.get(key);
+			}
+		}
+
+		return entityTypeName;
+	}
+
+	private _restructParamObject(object: IntentDetectedParam): SysInterface {
+		var result: any;
+		var entityTypeName: SystemType = this._getSystemEntityTypeName(object);
+
+		// Assing date values
+		if (
+			entityTypeName == "datetime" ||
+			entityTypeName == "dateperiod" ||
+			entityTypeName == "datetimeperoid" ||
+			entityTypeName == "timeperiod"
+		) {
+			Object.keys(object).forEach(key => {
+				let kindValue = object[key]["kind"];
+				result[key] = new Date(object[key][kindValue]);
+			});
+		} else if (entityTypeName == "duration" || entityTypeName == "unitcurrency" || entityTypeName == "location") {
+			Object.keys(object).forEach(key => {
+				let kindValue = object[key]["kind"];
+				result[key] = object[key][kindValue];
+			});
+		} else {
+			let kindValue = object["name"]["kind"];
+			result = object["name"][kindValue];
+		}
+
+		return result;
 	}
 }

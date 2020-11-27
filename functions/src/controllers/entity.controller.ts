@@ -82,12 +82,15 @@ export default class EntityController {
             const entityId: string = req.params.entityId || req.body.entityId;
             const projectId: string = req.body.projectId || req.params.projectId;
 
-            const client = new EntityTypesClient({ credentials: keyFilename });
+            const client = new EntityTypesClient({credentials: keyFilename});
+            
+            // var fullEntityId = `projects/${projectId}/agent/entityTypes/${entityId}`
 
             const name = client.entityTypePath(
                 projectId,
                 entityId
             );
+            console.log(name);
             await client.deleteEntityType({ name })
               .then( async result => {
                   await client.close();

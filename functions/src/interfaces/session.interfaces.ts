@@ -33,8 +33,25 @@ export interface DataParty extends SimpleOutput  {
     suggests: Suggest[]
 }
 
-export type result =
-      SimpleOutput
+export interface ResponseResult{
+    text?: string,
+    suggests?: Suggest[],
+    cards?: Card[]
+}
+
+export interface Card {
+    title: string,
+    subtitle?: string,
+    body?: string,
+    imageUri?: string,
+    buttons?: CardButton[]
+}export interface CardButton {
+        text?: string,
+        postback?: string
+}
+
+export type Result =
+    | SimpleOutput
     | DataParty
     | SearchOutput
     | ContionalOutput;
@@ -51,7 +68,7 @@ type TypeOfAnswer =
     inputContext: string;
     outputContext: string;
     tipo: TypeOfAnswer;
-    result: result;
+    result: Result;
 }
 
 //parameters puede ser un objeto con diferente estrcutura,
@@ -97,6 +114,6 @@ interface fromDialogflowApi<T> {
 // ES DEECIR<STRING, | LISTAS| STRING | MAP/object | NULL | BOOLEAN>
 export type GetDocs<doc> = Partial<doc>
 
-export type ApiMessagesSucceeded = result & {
+export type ApiMessagesSucceeded = ResponseResult & {
     outputContext: string
 }
