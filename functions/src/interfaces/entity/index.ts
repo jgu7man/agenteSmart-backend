@@ -41,5 +41,5 @@ export interface ICreateEntityType {
 export interface IUpdateEntityType {
     entityType: IEntityType,
     languagueCode?: string | null;
-    updateMask?:object | null;
+    updateMask?:string | null;
 }
