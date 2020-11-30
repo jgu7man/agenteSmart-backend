@@ -1,6 +1,7 @@
+import { IntentView, ITrainingPhrase, IParameter } from './../interfaces/agent.interface';
 import { IntentsClient } from '@google-cloud/dialogflow';
-
-import { Request, Response } from "express";
+import { Request, Response  } from "express";
+import asyncHandler from '../helpers/asyncHandler';
 // ITrainingPhrase, 
 //     IParameter, 
 //     IPart 
@@ -12,12 +13,12 @@ import {
 export  default class IntentController {
     public createIntent(req: Request, res: Response): void{
 
-        const { intent, projectId } = req.body as { projectId: string, intent: IIntent};
+        const { intent, projectId } = req.body as { projectId: string, intent: Partial<IIntent>};
         //set webHook if its not provided:
         intent.webHookState = (typeof intent.webHookState === undefined) ? 0 : intent.webHookState;
 
         // let { name, displayName, webHookState, trainingPhrases, action, parameters } = req.body.intent; 
-        const client = new IntentsClient({ keyFilename });
+        const client = new IntentsClient({ credentials: keyFilename });
 
         const parent: string = client.agentPath(projectId);
         //falta validar los parametros (intent.Parameters: Array<IParameter>). 
@@ -32,9 +33,8 @@ export  default class IntentController {
             const operation = response[0];
             await client.close();
 
-            return res.status(200).json({
-                status: "Exito",
-                result: operation
+            return res.status(201).json({
+                intent: operation
             });
         }).catch( err => {
             return res.status(500).json({
@@ -46,58 +46,142 @@ export  default class IntentController {
 
     }
 
-    public updateIntent(req: Request, res: Response): void{
-        //destructuring we can handle a 400 error here.
-        const { intent , intentView } = req.body as { intent: IIntent, intentView: number };
-        const client = new IntentsClient({ keyFilename });
+    public updateIntent = async (req: Request, res: Response) => {
+      //destructuring we can handle a 400 error here.
+      const intent: IIntent = req.body.intent;
+      const trainingPhrases = this.mergeParts(req.body.intent.trainingPhrases);
+      const parameters = this.checkForParameters(req.body.intent.parameters);
+      intent.trainingPhrases = <Array<ITrainingPhrase|null>>trainingPhrases;
+      intent.parameters = parameters;
+      this.updatedIntent(intent).then(result => {
+          console.info('Resultado de la operacion:', result)
+          res.status(200).json({
+            intent: result
+          })
+          return true;
+      }).catch(err => {
+          console.error('Error aqui');
+          res.status(400).json({
+              error: err,
+              message:"dificil procedimiento"
+          })
+      })
 
-        client.updateIntent({
-            intent,
-            intentView
-        }).then( async result => {
-            //inmutable data :P
-            const updatedIntent = {...result[0]};
-            await client.close();
-            return res.status(200).json({
-                status: "Success",
-                result: updatedIntent
-            });
-        }).catch( error => {
-            return res.status(500).json({
-                status: "error",
-                error
-            })
-        });
     }
-     
+    private mergeParts = (trainingPhrases: [ITrainingPhrase]) => {
+        // const mapped = trainingPhrases.map(phrase => {
+        //   const mappedParts: Array<ITrainingPhrase> = phrase.parts.map(part => { 
+        //     if (part.entityType) {
+        //       part.entityType = "@" + part.entityType;
+        //     }
+        //   })
+        //   phrase.parts = mappedParts;
+        //   return phrase;
+        // })
+        const trainingPhrasesFixed = [];
 
-    public deleteIntent(req: Request, res: Response): void {
-        const intent:string = (typeof(req.params.intentId) === undefined)? req.params.intentId : req.body.intentId;
-        const projectId: string = req.body.projectId;
+        for (const trainingPhrase of trainingPhrases) {
+        const partes = [];
+        for (const part of trainingPhrase.parts) {
+            if (part.entityType !== undefined && part.entityType) {
+            partes.push({ ...part, entityType: (part.entityType.startsWith('@') )? part.entityType : '@' + part.entityType, userDefined: true })
+            }
+            else if (part.text) {
+                partes.push(part);
+            }
+        }
+            trainingPhrasesFixed.push({
+            type: trainingPhrase.type,
+            parts: partes
+        })
+        }
+        console.info('Returned Pharases:', trainingPhrasesFixed)
+        return trainingPhrasesFixed;
+    }
+    private checkForParameters = (parameters: Array<IParameter>) => {
+        if (parameters.length < 1) return parameters;
+        for (const parameter of parameters) {
+        if (parameter) {
+            parameter.value = parameter.value.startsWith('$')? parameter.value : `$${parameter.value}`
+        }
+        console.info('Parametros seteados su valor: ', parameter)
+        }
+        return parameters;
+    }
+    private updatedIntent = async (intent: IIntent) => {
+      const client = new IntentsClient({ credentials: keyFilename });
+
+      const request = {
+          intent: intent,
+          intentView: <IntentView>"INTENT_VIEW_FULL"
+      }
+        const responses = await client.updateIntent(request)
+            .then(result => {
+                return result[0];
+            })
+            .then()
         
-        const client = new IntentsClient({ keyFilename });
-        const name = client.intentPath(projectId, intent)
-        client.deleteIntent({ name })
-            .then( result => {
-                return res.status(200).json({
-                    status: "Success",
-                    result: {
-                        message: "Intent Succefully deleted",
-                        response: result[0]
+        return responses;
+      
+    }
+    public deleteIntentWithParams = asyncHandler( async (req: Request, res: Response) => {
+        const { intent, projectId } = req.query as {intent: string, projectId: string}
+        const request = await this.deleteFromDialogFlow(intent, projectId);
+
+        if (request) {
+            res.status(204).end();
+        }
+    })
+    public deleteIntent = async (req: Request, res: Response) => {
+        const { intent, projectId } = req.params as { intent: string, projectId: string }
+        try {
+            
+            const request = await this.deleteFromDialogFlow(intent, projectId);
+            if (request) {
+                res.status(204).end();
+                return
+            }
+        } catch (error) {
+            if (error.code === 5) {
+                res.status(404).json({
+                    status: "Error",
+                    name: "NOT INTENT AVAILABLE",
+                    message: error.message
+                }).end()
+                return
+            }
+            res.status(500).json({
+                status: "Error",
+                name: "INTENT DELATION ERROR",
+                message:"Error borrando Intent"
+            }).end()
+
+        }
+    };
+
+
+    private deleteFromDialogFlow(intentName: string, projectId: string):
+        Promise<object>{
+        return new Promise((resolve, reject) => {
+            const client = new IntentsClient({ credentials: keyFilename });
+            const name = client.intentPath(projectId, intentName)
+
+            client.deleteIntent({ name })
+                .then( result => {
+                    if (result) {
+                        resolve(result[0])
                     }
-                });
-            })
-            .catch( error => {
-                return res.status(500).json({
-                    status: "error",
-                    error: error
                 })
-            })
+                .catch( error => {
+                   if (error) {
+                       reject(error)
+                   }
+                })
+        })
     }
 
     public listAllIntents(req: Request, res: Response): void {
         const { 
-            intentView = 0, 
             pageSize = 25, 
             pageToken = null 
         } = req.query as unknown as { 
@@ -106,14 +190,14 @@ export  default class IntentController {
             pageToken: string | null
         }
         const project: string = req.params.projectId;
-        const client = new IntentsClient({ keyFilename });
+        const client = new IntentsClient({ credentials: keyFilename });
 
         const parent = client.agentPath(project);
 
 
         client.listIntents({
             parent,
-            intentView,
+            intentView: "INTENT_VIEW_FULL",
             pageSize,
             pageToken
         }).then( async result => {
@@ -134,6 +218,6 @@ export  default class IntentController {
         })
 
 
-    }
+  };
     
 }

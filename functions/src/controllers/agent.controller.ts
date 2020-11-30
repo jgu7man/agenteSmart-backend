@@ -1,5 +1,5 @@
-import { Project, Agent, IPreProject } from '../../interfaces/agent.interface';
-import { keyFilename } from "../../index";
+import { Project, Agent, IPreProject } from '../interfaces/agent.interface';
+import { keyFilename } from "../index";
 import { Resource } from '@google-cloud/resource';
 import dialogflow from '@google-cloud/dialogflow';
 import { Request, Response } from 'express';
@@ -12,7 +12,7 @@ async function createProject( project: Project ): Promise<Project | unknown | an
     // This method looks for the GCLOUD_PROJECT and GOOGLE_APPLICATION_CREDENTIALS
     // environment variables.
 
-    const resource = new Resource( { keyFilename } );
+    const resource = new Resource( { credentials: keyFilename } );
     const options = {
         name: project.displayName,
         parent: {
@@ -41,7 +41,7 @@ async function createAgent( agent: Agent ): Promise<Agent> {
     agent.matchMode = 'MATCH_MODE_HYBRID'
     agent.enableLoggin = true
 
-    const resource = new dialogflow.AgentsClient( { keyFilename, projectId: agent.parent } );
+    const resource = new dialogflow.AgentsClient( { credentials: keyFilename, projectId: agent.parent } );
     return await resource.setAgent( { agent } )
         .then( res => {
             const newAgent: Agent = res[ 0 ];
