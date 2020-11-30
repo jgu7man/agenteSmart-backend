@@ -12,37 +12,53 @@ type Condition =
  
 
 // Defined types for array of answers received from firestore
-export interface PreDefinedOutput {
-    estiloRespuesta: string;
-    respuesta: object | string;
-  }
- export interface ContionalOutput extends PreDefinedOutput{
-      condicion: Condition;
-      valor: string
-      parametro: string;
-  
-  }
-  export interface SearchOutput extends PreDefinedOutput {
-      rutaDB:string
-      parametro: string;
-  
-  }
-  
- export interface DataParty extends PreDefinedOutput {
-      grupoDatos: string;
-      key: string;
-      parametro: string;
-  
-  }
-export type OutputMessage = 
-    | PreDefinedOutput
+export interface SimpleOutput {
+    text: string;
+    suggests: Suggest[],
+}
+export interface ContionalOutput extends SimpleOutput {
+    condicion: Condition;
+    valor: string
+    parametro: string;
+}
+export interface SearchOutput extends SimpleOutput  {
+    database:string
+    parametro: string;
+    card: object
+}
+export interface DataParty extends SimpleOutput  {
+    coleccion: string;
+    key: string;
+    parametro: string;
+    suggests: Suggest[]
+}
+
+export interface ResponseResult{
+    text?: string,
+    suggests?: Suggest[],
+    cards?: Card[]
+}
+
+export interface Card {
+    title: string,
+    subtitle?: string,
+    body?: string,
+    imageUri?: string,
+    buttons?: CardButton[]
+}export interface CardButton {
+        text?: string,
+        postback?: string
+}
+
+export type Result =
+    | SimpleOutput
     | DataParty
     | SearchOutput
     | ContionalOutput;
     
 type TypeOfAnswer =
     | 'buscar'
-    | 'predefinida'
+    | 'simple'
     | 'condicional'
     | 'grupo_datos';
   
@@ -52,7 +68,7 @@ type TypeOfAnswer =
     inputContext: string;
     outputContext: string;
     tipo: TypeOfAnswer;
-    outputMessage: OutputMessage;
+    result: Result;
 }
 
 //parameters puede ser un objeto con diferente estrcutura,
@@ -66,25 +82,38 @@ export interface Context {
 export interface QueryResult {
     queryText: string | null;
     action: string | null;
-    parameters:object |null | ParameterFromQueryResult<any>  ;
+    parameters?: null | Object | Map<string, any> | ParameterFromQueryResult;
     webhookSource: string| null;
     webhookPayload: object | null;
     outputContexts: Array<Context> | null;
     allRequiredParamsPresent: boolean | null;
     intent: Partial<IIntent>;
     fulfillmentText: string;
-
+    clientId?: string;
+    sessionId?: string;
+    projectId?: string;
 }
 
-export interface ParameterFromQueryResult<T> {
-    fields:  Map<string, T> | null
+export interface ParameterFromQueryResult{
+    fields: fromDialogflowApi<any> | object
 }
+
+export interface Suggest {
+    text: string
+    context:string
+}
+
+interface fromDialogflowApi<T> {
+    kind: T,
+    T: any;
+}
+
 
 //PARAMETROS DE API DE DIALOGFLOW
 //ESTOS PARAMETROS ES UN MAP DE LA ESTRUCTURA CON SU KEY
 // ES DEECIR<STRING, | LISTAS| STRING | MAP/object | NULL | BOOLEAN>
 export type GetDocs<doc> = Partial<doc>
 
-export type ApiMessagesSucceeded = OutputMessage & {
+export type ApiMessagesSucceeded = ResponseResult & {
     outputContext: string
 }
