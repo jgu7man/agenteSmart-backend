@@ -5,3 +5,12 @@
 # Typescript v1 declaration files
 typings/
 node_modules/
+/lib/
+/out/
+
+
+lauch.json
+
+*/*.log
+
+.vscode/
