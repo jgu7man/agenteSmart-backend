@@ -76,8 +76,8 @@ export default class SessionController {
 
 				// console.info("\n\tExito!\n\tSe han retornado las siguientes respuestas:\n\t\t", validatedResponses);
 
-				if (validatedResponses) {
-				}
+				// if (validatedResponses) {
+				// }
 
 				res.status(200).json({
 					message: "Exito",
@@ -130,7 +130,7 @@ export default class SessionController {
 				const paramValueTypeName = x[1]["kind"];
 				const paramName = x[0];
 				const paramValue =
-					paramValueTypeName == "structValue"
+					paramValueTypeName === "structValue"
 						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
 						: x[1][paramValueTypeName];
 
@@ -233,36 +233,40 @@ export default class SessionController {
 	};
 
 	// ANCHOR Replace parameters in text
-	private _replaceParameters(_paramsMap: Map<string, any>, text_: string) {
+	private _replaceParameters(
+		_paramsMap: Map<string, any>,
+		text_: string
+	) {
+		let textReplaced: string
 		if (text_.includes("$")) {
-			let posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
+			const posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
 			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
-			let variable = posibleVariable[0];
+			const variable = posibleVariable[0];
 
 			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
 			console.log(posibleVariable);
-			let value = _paramsMap.get(variable);
-			text_ = text_.replace(
+			const value = _paramsMap.get(variable);
+			textReplaced = text_.replace(
 				posibleVariable.length > 1
-					? posibleVariable[1] == "original"
+					? posibleVariable[1] === "original"
 						? `$${variable}.original`
 						: `$${variable}`
 					: `$${variable}`,
 				value
 			);
-			console.log('\x1b[32m%s\x1b[37m', "text replaced: ", text_);
+			console.log('\x1b[32m%s\x1b[37m', "text replaced: ", textReplaced);
 		}
-		return text_;
+		return textReplaced;
 	}
 
 	private _validateSearch = async (
 		responseToValidate: SearchOutput,
 		parameters: Map<string, any>,
-		outputCtx: string,
+		outputContext: string,
 		clientId: string
 	): Promise<ApiMessagesSucceeded | null> => {
 		// **************************************** //
-		var value = parameters.get(responseToValidate.parametro)
+		const value = parameters.get(responseToValidate.parametro)
 		console.log( '\x1b[33m%s\x1b[37m%s', 'search criteria',{database: responseToValidate.database,value});
 		// console.log();
 
@@ -284,7 +288,7 @@ export default class SessionController {
 			return {
 				text: responseToValidate.text,
 				cards: data,
-				outputContext: outputCtx
+				outputContext
 			};
 		}
 		return null;
@@ -405,9 +409,9 @@ export default class SessionController {
 	]);
 
 	private _getSystemEntityTypeName(object: IntentDetectedParam): SystemType {
-		var entityTypeName: SystemType;
+		let entityTypeName: SystemType;
 
-		for (var key of this.types.keys()) {
+		for (let key of this.types.keys()) {
 			if (key in object) {
 				entityTypeName = this.types.get(key);
 			}
@@ -417,27 +421,27 @@ export default class SessionController {
 	}
 
 	private _restructParamObject(object: IntentDetectedParam): SysInterface {
-		var result: any;
-		var entityTypeName: SystemType = this._getSystemEntityTypeName(object);
+		let result: any;
+		const entityTypeName: SystemType = this._getSystemEntityTypeName(object);
 
 		// Assing date values
 		if (
-			entityTypeName == "datetime" ||
-			entityTypeName == "dateperiod" ||
-			entityTypeName == "datetimeperoid" ||
-			entityTypeName == "timeperiod"
+			entityTypeName === "datetime" ||
+			entityTypeName === "dateperiod" ||
+			entityTypeName === "datetimeperoid" ||
+			entityTypeName === "timeperiod"
 		) {
 			Object.keys(object).forEach(key => {
-				let kindValue = object[key]["kind"];
+				const kindValue = object[key]["kind"];
 				result[key] = new Date(object[key][kindValue]);
 			});
-		} else if (entityTypeName == "duration" || entityTypeName == "unitcurrency" || entityTypeName == "location") {
+		} else if (entityTypeName === "duration" || entityTypeName === "unitcurrency" || entityTypeName === "location") {
 			Object.keys(object).forEach(key => {
-				let kindValue = object[key]["kind"];
+				const kindValue = object[key]["kind"];
 				result[key] = object[key][kindValue];
 			});
 		} else {
-			let kindValue = object["name"]["kind"];
+			const kindValue = object["name"]["kind"];
 			result = object["name"][kindValue];
 		}
 

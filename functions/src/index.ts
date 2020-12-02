@@ -11,6 +11,7 @@ import AgentRoutes from './routes/agentes.routes';
 import IntentRoutes from './routes/intent.routes';
 import entityRoutes from './routes/entity.routes';
 import SessionRoutes from './routes/session.routes';
+import WebhookRoutes from "./routes/webhook.routes";
 import { config } from "dotenv";
 class app {
 	
@@ -30,7 +31,7 @@ class app {
 		this.app.use('/intent', new IntentRoutes().router);
 		this.app.use('/entity', entityRoutes());
 		this.app.use('/session', new SessionRoutes().router)
-		
+		this.app.use('/webhook', new WebhookRoutes().router)
 	}
 	
 	private initMiddleware(): void {
