@@ -96,3 +96,9 @@ export function create(req: Request, res: Response): void{
                 return;
             });
 }
+
+
+
+export function importAgente( req: Request, res: Response ) {
+    
+}
