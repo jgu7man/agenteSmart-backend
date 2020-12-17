@@ -27,6 +27,8 @@ export default class SessionController {
 			databaseURL: "https://main-agentesmart.firebaseio.com",
 		});
 	}
+
+	// ANCHOR DETECT INTENT (ROOT)
 	public detectIntent = async (req: Request, res: Response): Promise<void> => {
 		try {
 			const { projectId, textInput, clientId } = req.body;
@@ -96,6 +98,7 @@ export default class SessionController {
 		}
 	};
 
+	// ANCHOR FIND RESPUESTAS FIRESTORE
 	private async retriveMessagesFromFireStore(
 		clientId: string,
 		idProject: string,
@@ -120,28 +123,8 @@ export default class SessionController {
 		return respuestas;
 	}
 
-	// ANCHOR Parameters of detect intent
-	private _parsedResponseFromDialogflow = (parameters: ParameterFromQueryResult) => {
-		const newIterator = Object.entries(parameters.fields);
-
-		return new Map(
-			newIterator.map(x => {
-				// console.log('\x1b[33m%s\x1b[37m', 'x', x)
-				const paramValueTypeName = x[1]["kind"];
-				const paramName = x[0];
-				const paramValue =
-					paramValueTypeName === "structValue"
-						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
-						: x[1][paramValueTypeName];
-
-				console.log("\x1b[32m%s\x1b[37m", "fields", paramValue);
-
-				return [paramName, paramValue];
-			})
-		);
-	};
-
-	// ANCHOR actions map responses
+	
+	// ANCHOR ACTIONS MAP FROM RESPUESTAS
 	protected ManageResponsesController = async (
 		arrayOfAnswer: Array<ResponseFromFirebase>,
 		queryResult: QueryResult,
@@ -232,33 +215,7 @@ export default class SessionController {
 		// return responsesReturned;
 	};
 
-	// ANCHOR Replace parameters in text
-	private _replaceParameters(
-		_paramsMap: Map<string, any>,
-		text_: string
-	) {
-		let textReplaced: string
-		if (text_.includes("$")) {
-			const posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
-			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
-			const variable = posibleVariable[0];
-
-			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
-			console.log(posibleVariable);
-			const value = _paramsMap.get(variable);
-			textReplaced = text_.replace(
-				posibleVariable.length > 1
-					? posibleVariable[1] === "original"
-						? `$${variable}.original`
-						: `$${variable}`
-					: `$${variable}`,
-				value
-			);
-			console.log('\x1b[32m%s\x1b[37m', "text replaced: ", textReplaced);
-		}
-		return textReplaced;
-	}
-
+	// ANCHOR SEARCH
 	private _validateSearch = async (
 		responseToValidate: SearchOutput,
 		parameters: Map<string, any>,
@@ -294,17 +251,21 @@ export default class SessionController {
 		return null;
 	};
 
+	// ANCHOR CONDITIONAL
 	private _validateConditional = async (
 		responseToValidate: ConditionalOutput,
 		outputContext: string,
 		parameters: Map<string, any>
 	): Promise<ApiMessagesSucceeded | null> => {
 		let resolve = false;
-		const value = parameters.get(responseToValidate.parametro);
-		console.log('\x1b[36m%s\x1b[37m', 'condition criteria',{value, criterio: responseToValidate.valor, param: responseToValidate.parametro});
+		let param = responseToValidate.parametro
+			.split( '$' )[ 1 ]
+			.split( '.' )[ 0 ];
+		const value = parameters.get(param);
+		console.log('\x1b[36m%s\x1b[37m', 'condition criteria',{value, criterio: responseToValidate.valor, param: param});
 		
+		// console.log(value);
 		if (value) {
-			console.log(value);
 			switch (responseToValidate.condicion) {
 				case "igual a":
 					if (value === responseToValidate.valor) resolve = true;
@@ -324,15 +285,13 @@ export default class SessionController {
 				case "menor o igual que":
 					if (value <= responseToValidate.valor) resolve = true;
 					break;
-				case "existe":
-					if (value.includes(responseToValidate.valor)) resolve = true;
-					break;
-				case "no existe":
-					if (!value.includes(responseToValidate.valor)) resolve = true;
-					break;
 				default:
 					break;
 			}
+		} else if (responseToValidate.condicion === 'no existe' && !value) {
+			resolve = true;
+		} else if ( responseToValidate.condicion === 'existe' && value ) {
+			resolve = true;
 		}
 		if (resolve) {
 			console.log('Response with condition');
@@ -340,6 +299,8 @@ export default class SessionController {
 		}
 		return null;
 	};
+
+	// ANCHOR DATAGROUP
 	private _validateDataGroup = async (
 		responseToValidate: DataParty,
 		outputContext: string,
@@ -357,6 +318,8 @@ export default class SessionController {
 		}
 		return null;
 	};
+
+	// ANCHOR SIMPLE
 	private _validateSimple = async (
 		responseToValidate: SimpleOutput,
 		outputContext: string
@@ -371,6 +334,7 @@ export default class SessionController {
 		return null;
 	};
 
+	// ANCHOR SET CONTEXT
 	private async _createContext(contextString: string, params?: object) {
 		const contextClient = new ContextsClient({ credentials: keyFilename });
 		//The trick on Context is to set it greater that 1 so don't expire when finishing the current process 
@@ -397,6 +361,7 @@ export default class SessionController {
 	// 	});
 	// }
 
+	
 	private types = new Map<string, SystemType>([
 		["startDateTime", "datetimeperoid"],
 		["street-address", "location"],
@@ -408,6 +373,52 @@ export default class SessionController {
 		["name", "person"],
 	]);
 
+	// ANCHOR PARAMETERS OF DETECT INTENT
+	private _parsedResponseFromDialogflow = (parameters: ParameterFromQueryResult) => {
+		const newIterator = Object.entries(parameters.fields);
+
+		return new Map(
+			newIterator.map(x => {
+				// console.log('\x1b[33m%s\x1b[37m', 'x', x)
+				const paramValueTypeName = x[1]["kind"];
+				const paramName = x[0];
+				const paramValue =
+					paramValueTypeName == "structValue"
+						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
+						: x[1][paramValueTypeName];
+
+				console.log("\x1b[32m%s\x1b[37m", "fields", paramValue);
+
+				return [paramName, paramValue];
+			})
+		);
+	};
+
+	// ANCHOR Replace parameters in text
+	private _replaceParameters(_paramsMap: Map<string, any>, text_: string) {
+		if (text_.includes("$")) {
+			let posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
+			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
+			let variable = posibleVariable[0];
+
+			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
+			console.log(posibleVariable);
+			let value = _paramsMap.get(variable);
+			text_ = text_.replace(
+				posibleVariable.length > 1
+					? posibleVariable[1] == "original"
+						? `$${variable}.original`
+						: `$${variable}`
+					: `$${variable}`,
+				value
+			);
+			console.log('\x1b[32m%s\x1b[37m', "text replaced: ", text_);
+		}
+		return text_;
+	}
+	
+
+	// ANCHOR Get system entityType name
 	private _getSystemEntityTypeName(object: IntentDetectedParam): SystemType {
 		let entityTypeName: SystemType;
 
@@ -420,6 +431,7 @@ export default class SessionController {
 		return entityTypeName;
 	}
 
+	// ANCHOR Restruct param object
 	private _restructParamObject(object: IntentDetectedParam): SysInterface {
 		let result: any;
 		const entityTypeName: SystemType = this._getSystemEntityTypeName(object);

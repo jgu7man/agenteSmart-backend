@@ -10,7 +10,7 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "debug": "nodemon -e ts --exec \"npm run hotReload\""
+    "debug": "nodemon -e ts --exec \"npm run serve\""
   },
   "engines": {
     "node": "10"
