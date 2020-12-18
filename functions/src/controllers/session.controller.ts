@@ -33,9 +33,11 @@ export default class SessionController {
 		try {
 			const { projectId, textInput, clientId } = req.body;
 			const sessionClient = new SessionsClient( { credentials: keyFilename } );
+			console.log( req.body.sessionId )
 			const sessionId = req.body.sessionId ? req.body.sessionId : uuidv4();
 			const InputContexts = req.body.inputContexts ? req.body.inputContexts : []
-			console.log(InputContexts)
+			console.log( InputContexts.length )
+
 
 			const sessionPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 			this._parentPath = sessionPath;
@@ -62,7 +64,8 @@ export default class SessionController {
 
 			const response = await sessionClient.detectIntent(request).then(result => result[0]);
 			//retrive all contextFromSession:
-			// console.log( 'Respuesta de Dialogflow', response.queryResult );
+			console.log( 'Respuesta de Dialogflow', response.queryResult );
+			console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
 			console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName);
 
 			// console.log(response.queryResult.intent.parameters)
@@ -391,7 +394,7 @@ export default class SessionController {
 
 		return new Map(
 			newIterator.map(x => {
-				console.log('\x1b[33m%s\x1b[37m', 'x', x)
+				// console.log('\x1b[33m%s\x1b[37m', 'x', x)
 				const paramValueTypeName = x[1]["kind"];
 				const paramName = x[0];
 				const paramValue =

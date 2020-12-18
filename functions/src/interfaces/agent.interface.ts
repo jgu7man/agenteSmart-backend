@@ -60,7 +60,7 @@ export type IntentView = "INTENT_VIEW_UNSPECIFIED" | "INTENT_VIEW_FULL";
 export interface IIntent {
     name?: string;
     displayName: string;
-    webHookState: number;
+    webHookState: string;
     trainingPhrases?: Array<ITrainingPhrase>;
     action?: string;
     parameters?: Array<IParameter>;
