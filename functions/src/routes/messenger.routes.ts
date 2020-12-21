@@ -1,5 +1,5 @@
 import {Router} from "express";
-import MessengerWebhook from "../controllers/webhooks.controller";
+import MessengerWebhook from "../controllers/messenger.controller";
 
 export default class WebhooksRoutes {
     public router: Router
@@ -15,7 +15,7 @@ export default class WebhooksRoutes {
 
 
     declareRoutes() {
-        this.router.post('/messenger', this.Messenger.listenEvent);
-        this.router.get('/messenger', this.Messenger.requestEvent);
+        this.router.get( '/verify', this.Messenger.requestEvent);
+        this.router.post('/:userId/:projectId', this.Messenger.listenEvent);
     }
 }

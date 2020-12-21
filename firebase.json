@@ -14,5 +14,24 @@
     "firestore": {
       "port": 1000
     }
+  },
+  "hosting": {
+    "site": "api-agentesmart",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "public": "functions/lib",
+    "rewrites": [ 
+      { 
+        "source": "/dialogflow{,/**}", 
+        "function": "dialogflow" 
+      },
+      { 
+        "source": "/messenger{,/**}", 
+        "function": "messenger"
+      } 
+    ]
   }
 }

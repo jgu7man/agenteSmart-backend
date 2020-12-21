@@ -1,6 +1,6 @@
 import { 
     Response, 
-    Request 
+    Request
 } from 'express';
 
 export class ApplicationException extends Error {
@@ -10,17 +10,20 @@ export class ApplicationException extends Error {
 }
 
 function errorHandler(
-    error: ApplicationException,
     req: Request, 
-    res: Response) {
+    res: Response,
+    next: any, 
+    ) {
     
-    console.log('Entre al manejo de Error')
-    console.error("Error en peticion: ", error);
-    res.status(500).json({
-        "status": "Error",
-        "message": error.message,
-        "code": error.name
-        });
+    console.log(  )
+    
+    console.error("Error en la peticion",);
+    res.status(404)
+    .send( {
+        "status": 404,
+        "message": "Error en la peticion",
+    } );
+    
 
 }
 

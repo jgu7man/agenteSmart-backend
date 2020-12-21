@@ -1,3 +1,10 @@
+import { firestore } from "../middlewares/firebase.mid";
+import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
+
+import { Response, Request } from "express";
+import { v4 as uuidv4 } from "uuid";
+import { keyFilename } from "../index";
+
 import {
 	SimpleOutput,
 	QueryResult,
@@ -10,23 +17,16 @@ import {
 	DataParty,
 	Card,
 } from "./../interfaces/session.interfaces";
-import { Response, Request } from "express";
-import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
-import { v4 as uuidv4 } from "uuid";
-import * as admin from "firebase-admin";
-import { keyFilename } from "../index";
 import { IntentDetectedParam, SysInterface, SystemType } from "../interfaces/parameter.interface";
 
+
+
+
 export default class SessionController {
-	private auth: admin.app.App;
-	_Contexts: Array<any>;
-	_parentPath: string;
-	constructor() {
-		this.auth = admin.initializeApp({
-			credential: admin.credential.applicationDefault(),
-			databaseURL: "https://main-agentesmart.firebaseio.com",
-		});
-	}
+	
+	private _Contexts: Array<any>;
+	private _parentPath: string;
+	
 
 	// ANCHOR DETECT INTENT (ROOT)
 	public detectIntent = async (req: Request, res: Response): Promise<void> => {
@@ -34,9 +34,11 @@ export default class SessionController {
 			const { projectId, textInput, clientId } = req.body;
 			const sessionClient = new SessionsClient( { credentials: keyFilename } );
 			console.log( req.body.sessionId )
-			const sessionId = req.body.sessionId ? req.body.sessionId : uuidv4();
-			const InputContexts = req.body.inputContexts ? req.body.inputContexts : []
-			console.log( InputContexts.length )
+			const sessionId = req.body.sessionId
+				? req.body.sessionId
+				: uuidv4();
+			this._Contexts = req.body.inputContexts ? req.body.inputContexts : []
+			console.log( this._Contexts.length )
 
 
 			const sessionPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
@@ -54,14 +56,12 @@ export default class SessionController {
 					},
 				},
 				queryParams: {
-					contexts: InputContexts
+					contexts: this._Contexts
 				}
 			};
 
 
 			//Inicia la secuenia
-
-
 			const response = await sessionClient.detectIntent(request).then(result => result[0]);
 			//retrive all contextFromSession:
 			console.log( 'Respuesta de Dialogflow', response.queryResult );
@@ -121,8 +121,6 @@ export default class SessionController {
 		const idName = intentName.slice(intentName.lastIndexOf("/") + 1);
 
 		const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
-
-		const firestore = this.auth.firestore();
 
 		const intentRef = firestore.collection(pathToCollection).orderBy("index", "asc");
 		const respuestas: any[] = [];
@@ -205,7 +203,7 @@ export default class SessionController {
 					// console.log( currentResponse )
 					if (currentResponse) {
 						if ( !outputContexts.find( x => x === currentResponse.outputContext ) ) {
-							let context = await this._createContext( currentResponse.outputContext );
+							const context = await this._createContext( currentResponse.outputContext );
 							// console.log( context )
 							outputContexts.push(context);
 						}
@@ -243,7 +241,7 @@ export default class SessionController {
 			console.log("response with search");
 			const pathToCollection = `/usuarios/${clientId}/${responseToValidate.database}`;
 
-			const firestore = this.auth.firestore();
+			
 			const databaseRef = await firestore
 				.collection(pathToCollection)
 				.where("name", "==", responseToValidate.parametro)
@@ -271,7 +269,7 @@ export default class SessionController {
 		parameters: Map<string, any>
 	): Promise<ApiMessagesSucceeded | null> => {
 		let resolve = false;
-		let param = responseToValidate.parametro.split("$")[1].split(".")[0];
+		const param = responseToValidate.parametro.split("$")[1].split(".")[0];
 		const value = parameters.get(param);
 		// console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
 		// 	value,
@@ -398,7 +396,7 @@ export default class SessionController {
 				const paramValueTypeName = x[1]["kind"];
 				const paramName = x[0];
 				const paramValue =
-					paramValueTypeName == "structValue"
+					paramValueTypeName === "structValue"
 						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
 						: x[1][paramValueTypeName];
 
@@ -410,17 +408,18 @@ export default class SessionController {
 	};
 
 	// ANCHOR Replace parameters in text
-	private _replaceParameters(_paramsMap: Map<string, any>, text_: string) {
+	private _replaceParameters( _paramsMap: Map<string, any>, text_: string ) {
+		let text
 		if (text_.includes("$")) {
-			let posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
+			const posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
 			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
-			let variable = posibleVariable[0];
+			const variable = posibleVariable[0];
 
 			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
-			let value = _paramsMap.get(variable);
-			text_ = text_.replace(
+			const value = _paramsMap.get(variable);
+			text = text_.replace(
 				posibleVariable.length > 1
-					? posibleVariable[1] == "original"
+					? posibleVariable[1] === "original"
 						? `$${variable}.original`
 						: `$${variable}`
 					: `$${variable}`,
@@ -428,14 +427,14 @@ export default class SessionController {
 			);
 			// console.log("\x1b[32m%s\x1b[37m", "text replaced: ", text_);
 		}
-		return text_;
+		return text;
 	}
 
 	// ANCHOR Get system entityType name
 	private _getSystemEntityTypeName(object: IntentDetectedParam): SystemType {
 		let entityTypeName: SystemType;
 
-		for (let key of this.types.keys()) {
+		for (const key of this.types.keys()) {
 			if (key in object) {
 				entityTypeName = this.types.get(key);
 			}
