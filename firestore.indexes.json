@@ -57,5 +57,17 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "agentes",
+      "fieldPath": "projectId",
+      "indexes": [
+        {
+          "queryScope": "COLLECTION_GROUP",
+          "order": "ASCENDING",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    }
+  ]
 }
