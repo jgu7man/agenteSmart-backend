@@ -15,7 +15,7 @@ export default class MessengerRoutes {
 
 
     declareRoutes() {
-        this.router.get( '/verify', this.Messenger.requestEvent);
-        this.router.post('/:userId/:projectId', this.Messenger.listenEvent);
+        this.router.get( '/:projectId', this.Messenger.requestEvent);
+        this.router.post('/:projectId', this.Messenger.listenEvent);
     }
 }

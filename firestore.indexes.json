@@ -64,8 +64,7 @@
       "indexes": [
         {
           "queryScope": "COLLECTION_GROUP",
-          "order": "ASCENDING",
-          "arrayConfig": "CONTAINS"
+          "order": "ASCENDING"
         }
       ]
     }

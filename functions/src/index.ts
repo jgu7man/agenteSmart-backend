@@ -9,6 +9,7 @@ import { Api } from './middlewares/api';
 
 const api = new Api();
 const rest = new Rest()
+
 exports.api = functions.https.onRequest( api.app );
 exports.rest = functions.https.onRequest( rest.app)
 
