@@ -1,7 +1,7 @@
 import {Router} from "express";
 import MessengerWebhook from "../controllers/messenger.controller";
 
-export default class WebhooksRoutes {
+export default class MessengerRoutes {
     public router: Router
     private Messenger: MessengerWebhook;
 

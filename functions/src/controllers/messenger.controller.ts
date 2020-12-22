@@ -61,6 +61,7 @@ export default class MessengerWebhook {
             // Checks the mode and token sent is correct
             if (mode === 'subscribe') {
                 
+                console.log(token)
                 const agents = await firestore
                     .collectionGroup( 'agentes' )
                     .where( 'projectId', '==', token )

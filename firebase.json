@@ -11,9 +11,7 @@
     "indexes": "firestore.indexes.json"
   },
   "emulators": {
-    "firestore": {
-      "port": 1000
-    }
+    
   },
   "hosting": {
     "site": "api-agentesmart",
@@ -22,16 +20,12 @@
       "**/.*",
       "**/node_modules/**"
     ],
-    "public": "functions/lib",
+    "public": "public",
     "rewrites": [ 
       { 
-        "source": "/dialogflow{,/**}", 
-        "function": "dialogflow" 
-      },
-      { 
-        "source": "/messenger{,/**}", 
-        "function": "messenger"
-      } 
+        "source": "**", 
+        "function": "api" 
+      }
     ]
   }
 }
