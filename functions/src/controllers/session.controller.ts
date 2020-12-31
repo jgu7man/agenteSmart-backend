@@ -33,12 +33,12 @@ export default class SessionController {
 		try {
 			const { projectId, textInput, clientId } = req.body;
 			const sessionClient = new SessionsClient( { credentials: keyFilename } );
-			console.log( req.body.sessionId )
+			console.log("\x1b[35m%s\x1b[33m", "Session:", req.body.sessionId )
 			const sessionId = req.body.sessionId
 				? req.body.sessionId
 				: uuidv4();
 			this._Contexts = req.body.inputContexts ? req.body.inputContexts : []
-			console.log( this._Contexts.length )
+			console.log("\x1b[35m%s\x1b[33m", "Contexts length:", this._Contexts.length )
 
 
 			const sessionPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
@@ -62,49 +62,59 @@ export default class SessionController {
 
 
 			//Inicia la secuenia
-			const response = await sessionClient.detectIntent(request).then(result => result[0]);
-			//retrive all contextFromSession:
-			console.log( 'Respuesta de Dialogflow', response.queryResult );
-			console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
-			console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName);
-
-			// console.log(response.queryResult.intent.parameters)
-			// console.log("Antes de llegar a la asginacion: ", req.body);
-			// const agent = new WebhookClient({ request: req, response: res });
-			const sessionResult = <QueryResult>{
-				...response.queryResult,
-				clientId: clientId,
-				sessionId,
-				projectId,
-			};
-
-			const getRespuestas = await this.retriveMessagesFromFireStore(
-				clientId,
-				projectId,
-				sessionResult.intent.name
-			);
-
-			// console.log({getRespuestas})
-			if (getRespuestas) {
-				const {answers, outputContexts} = await this.ManageResponsesController(getRespuestas, sessionResult, clientId);
-
-				// console.info("\n\tExito!\n\tSe han retornado las siguientes respuestas:\n\t\t", validatedResponses);
-
-				// if (validatedResponses) {
-				// }
-
-				res.status(200).json({
-					message: "Exito",
-					session: sessionId,
-					respuestas: answers,
-					contextos: outputContexts
+			console.log("\x1b[35m%s\x1b[33m", "Request", request)
+			const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
+			console.log( response )
+			if ( response.queryResult.intent ) {
+				
+				//retrive all contextFromSession:
+				// console.log( 'Respuesta de Dialogflow', response.queryResult );
+				// console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
+				console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName);
+	
+				// console.log(response.queryResult.intent.parameters)
+				// console.log("Antes de llegar a la asginacion: ", req.body);
+				// const agent = new WebhookClient({ request: req, response: res });
+				const sessionResult = <QueryResult>{
+					...response.queryResult,
+					clientId: clientId,
+					sessionId,
+					projectId,
+				};
+	
+				const getRespuestas = await this.retriveMessagesFromFireStore(
+					clientId,
+					projectId,
+					sessionResult.intent.name
+				);
+	
+				// console.log({getRespuestas})
+				if (getRespuestas) {
+					const {answers, outputContexts} = await this.ManageResponsesController(getRespuestas, sessionResult, clientId);
+	
+					// console.info("\n\tExito!\n\tSe han retornado las siguientes respuestas:\n\t\t", validatedResponses);
+	
+					// if (validatedResponses) {
+					// }
+	
+					res.status(200).json({
+						message: "Exito",
+						session: sessionId,
+						respuestas: answers,
+						contextos: outputContexts
+					});
+					return;
+				}
+				
+				res.status(404).json({
+					message: "No se encontro base de datos con ese clientId y projectId",
 				});
-				return;
+			} else {
+				res.status(404).json({
+					message: "No se detectó intent",
+				});
+				
 			}
-
-			res.status(404).json({
-				message: "No se encontro base de datos con ese clientId y projectId",
-			});
 		} catch (error) {
 			console.error(error);
 			res.status(500).send("Error making session");
@@ -130,7 +140,7 @@ export default class SessionController {
 		documents.forEach(doc => {
 			respuestas.push(doc.data());
 		});
-
+		console.log( respuestas )
 		return respuestas;
 	}
 
@@ -140,6 +150,7 @@ export default class SessionController {
 		queryResult: QueryResult,
 		clientId: string
 	) => {
+		const promisesToHandle: Array<Promise<ApiMessagesSucceeded>> = [];
 		const parametersToEvaluate = this._parsedResponseFromDialogflow(
 			<ParameterFromQueryResult>queryResult.parameters
 		);
@@ -147,13 +158,11 @@ export default class SessionController {
 		queryResult.parameters = parametersToEvaluate;
 		console.log(parametersToEvaluate);
 
-		const promisesToHandle: Array<Promise<ApiMessagesSucceeded>> = [];
 		// const parameterArray = queryResult.parameters;
 		// this._currentQueryResult.parameters.forEach( function(obj) {
 
 		for (const element of arrayOfAnswer) {
 			element.result.text = this._replaceParameters(parametersToEvaluate, element.result.text);
-
 			switch (element.tipo) {
 				case "grupo_datos":
 					promisesToHandle.push(
@@ -201,11 +210,13 @@ export default class SessionController {
 			try {
 				for ( const currentResponse of answers ) {
 					// console.log( currentResponse )
-					if (currentResponse) {
-						if ( !outputContexts.find( x => x === currentResponse.outputContext ) ) {
-							const context = await this._createContext( currentResponse.outputContext );
-							// console.log( context )
-							outputContexts.push(context);
+					if ( currentResponse ) {
+						if ( currentResponse.outputContext ) {
+							if ( !outputContexts.find( x => x === currentResponse.outputContext ) ) {
+								const context = await this._createContext( currentResponse.outputContext );
+								// console.log( context )
+								outputContexts.push(context);
+							}
 						}
 					}
 				}
@@ -252,7 +263,8 @@ export default class SessionController {
 				data.push((<any>document.data()) as Card);
 			}
 
-			console.log("\x1b[33m", 'Response with search' )
+			console.log( "\x1b[33m", 'Response with search' )
+			console.log(  "\x1b[33m", responseToValidate.text )
 			return {
 				text: responseToValidate.text,
 				cards: data,
@@ -308,7 +320,7 @@ export default class SessionController {
 		}
 		if (resolve) {
 			console.log( "\x1b[36m", "Response with condition" );
-			// console.log(  responseToValidate, outputContext)
+			console.log( "\x1b[33m",  responseToValidate.text )
 			return { ...responseToValidate, outputContext };
 		}
 		return null;
@@ -326,7 +338,8 @@ export default class SessionController {
 
 		if (value) {
 			console.log("\x1b[32m","response with datagroup");
-			await this._createContext(responseToValidate.coleccion);
+			await this._createContext( responseToValidate.coleccion );
+			console.log( "\x1b[33m", responseToValidate.text )
 			return { ...responseToValidate, outputContext };
 		}
 		return null;
@@ -341,7 +354,8 @@ export default class SessionController {
 		// console.log(responseToValidate);
 
 		if ( typeof responseToValidate !== undefined ) {
-			console.log("\x1b[34m", 'Response with simple' )
+			console.log( "\x1b[34m", 'Response with simple' )
+			console.log( "\x1b[33m",  responseToValidate.text )
 			return { ...responseToValidate, outputContext };
 		}
 		return null;
@@ -362,7 +376,9 @@ export default class SessionController {
 		
 		const contextCreated = await contextClient.createContext({ parent: this._parentPath, context });
 		return new Promise((resolve, reject) => {
-			// console.info("Succefully Created context: ", contextCreated[0])
+			console.info( "Succefully Created context: ", contextCreated[ 0 ].name.slice(
+				contextCreated[ 0 ].name.lastIndexOf('/') + 1
+			))
 			resolve(contextCreated[0]);
 		});
 	}
@@ -391,16 +407,30 @@ export default class SessionController {
 		const newIterator = Object.entries(parameters.fields);
 
 		return new Map(
-			newIterator.map(x => {
-				// console.log('\x1b[33m%s\x1b[37m', 'x', x)
-				const paramValueTypeName = x[1]["kind"];
-				const paramName = x[0];
-				const paramValue =
-					paramValueTypeName === "structValue"
-						? this._restructParamObject(x[1][paramValueTypeName]["fields"])
-						: x[1][paramValueTypeName];
+			newIterator.map( x => {
+				console.log( '\n', '\x1b[33m%s\x1b[37m', 'x', x, '\n' )
+				const paramValueTypeName = x[ 1 ][ "kind" ];
+				const paramName = x[ 0 ];
+				let paramValue: any
+				console.log( paramValueTypeName )
+				if ( paramValueTypeName === "structValue" ) {
+					const fields = x[ 1 ][ paramValueTypeName ][ "fields" ]
+					// console.log( 'structValue',  fields)
+					paramValue = this._restructParamObject( fields )
+					
+				} else if ( paramValueTypeName === 'listValue' ) {	
+					const values = x[ 1 ][ paramValueTypeName ]['values']
+					// console.log( 'listValue', values )
+					const fields = values[ 0 ][ 'structValue' ][ 'fields' ]
+					// console.log( fields )
+					paramValue = this._restructParamObject( fields )
+					
+				} else {
+					// console.log('otherValue', x[1][paramValueTypeName] )
+					paramValue = x[ 1 ][ paramValueTypeName ]
+				}
 
-				console.log("\x1b[32m%s\x1b[37m", "fields", paramValue);
+				console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
 
 				return [paramName, paramValue];
 			})
@@ -427,7 +457,7 @@ export default class SessionController {
 			);
 			// console.log("\x1b[32m%s\x1b[37m", "text replaced: ", text_);
 		}
-		return text;
+		return text ? text : text_;
 	}
 
 	// ANCHOR Get system entityType name
@@ -446,7 +476,8 @@ export default class SessionController {
 	// ANCHOR Restruct param object
 	private _restructParamObject(object: IntentDetectedParam): SysInterface {
 		let result: any;
-		const entityTypeName: SystemType = this._getSystemEntityTypeName(object);
+		const entityTypeName: SystemType = this._getSystemEntityTypeName( object );
+		console.log( entityTypeName )
 
 		// Assing date values
 		if (
@@ -473,6 +504,7 @@ export default class SessionController {
 			result = object["name"][kindValue];
 		}
 
+		console.log( result );
 		return result;
 	}
 }
