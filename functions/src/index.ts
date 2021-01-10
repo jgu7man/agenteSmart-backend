@@ -11,5 +11,11 @@ const api = new Api();
 const rest = new Rest()
 
 exports.api = functions.https.onRequest( api.app );
-exports.rest = functions.https.onRequest( rest.app)
+exports.rest = functions.https.onRequest( rest.app )
+
+exports.listenMessenger = functions.firestore
+    .document( '/usuarios/{userId}/agentes/{agenteId}/conversaciones/{conv}' )
+    .onWrite( ( change, context ) => {
+        
+    })
 

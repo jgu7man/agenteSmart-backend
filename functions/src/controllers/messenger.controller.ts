@@ -1,34 +1,41 @@
 import { Response, Request } from "express";
-import { Event, Entry, } from "../interfaces/webhook.interface";
+import {  MessageBody, } from "../interfaces/webhook.interface";
 import { firestore } from "../middlewares/firebase.mid";
-
+// import firebase from "firebase-admin";
+import FBmessenger from 'fb-messenger'
 
 
 
 export default class MessengerWebhook {
 
+    private messenger = new FBmessenger()
 
-
-    public listenEvent = async (req: Request, res: Response) => {
-
-        const body: Event = req.body;
+    public listenEvent = async ( req: Request, res: Response ) => {
+        
+        
+        const body: MessageBody = req.body;
         const projectId = req.params.projectId ? req.params.projectId : null;
         const agentsQuery = await firestore
             .collectionGroup( 'agentes' )
             .where( 'projectId', '==', projectId )
             .get()
-        console.log(body.entry)
+        console.log( body.sender )
+        console.log( body )
         
-        if ( !agentsQuery.empty ) {
-            
-            const docPath = agentsQuery.docs[ 0 ].ref.path
-            
-            body.entry.forEach(function(entry: Entry) {
+        // ! Falta aregar la obtención del page_access_token
+        this.messenger.setToken(  )
+        this.messenger.setNotificationType( 'REGULAR' )
+
+            if ( !agentsQuery.empty ) {
                 
+                const docPath = agentsQuery.docs[ 0 ].ref.path
+            
                 firestore.doc( `${ docPath }/conversaciones/test` )
-                .set( entry )
+                .set( body.message )
                 .catch( error => {console.log(error)})
-            } );
+                
+
+                this.messenger.sendTextMessage({id:body.sender.id, text:'hola'})
             
             res.status( 200 ).send( 'EVENT_RECEIVED' );
             
