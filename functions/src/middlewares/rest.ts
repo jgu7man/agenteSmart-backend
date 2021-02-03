@@ -7,9 +7,9 @@ import AgentRoutes from '../routes/agentes.routes';
 import IntentRoutes from '../routes/intent.routes';
 import entityRoutes from '../routes/entity.routes';
 import SessionRoutes from '../routes/session.routes';
-import WhatsappRoutes from '../routes/whatspp.routes';
 
 import { config } from "dotenv";
+import WhatsappRoutes from '../routes/whatspp.routes';
 
 export class Rest {
 	

@@ -8,7 +8,9 @@
     "indexes": "firestore.indexes.json"
   },
   "emulators": {
-    
+    "firestore": {
+      "port": "8000"
+    }
   },
   "hosting": {
     "site": "api-agentesmart",

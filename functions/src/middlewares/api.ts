@@ -4,6 +4,7 @@ import cors from 'cors';
 
 import { config } from "dotenv";
 import MessengerRoutes  from '../routes/messenger.routes';
+import WhatsappRoutes from '../routes/whatspp.routes';
 
 export class Api {
 	
@@ -20,7 +21,7 @@ export class Api {
 
 	private initRoutes() {
 		this.app.use('/messenger', new MessengerRoutes().router);
-		
+		this.app.use('/whatsapp', new WhatsappRoutes().router);
 	}
 	
 	private initMiddleware(): void {

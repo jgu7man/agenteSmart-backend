@@ -15,6 +15,6 @@ export default class WhatsappRoutes {
 
 
     declareRoutes() {
-        this.router.get( '/', this.Whatsapp.requestQR);
+        this.router.get( '/:projectId', this.Whatsapp.requestQR);
     }
 }

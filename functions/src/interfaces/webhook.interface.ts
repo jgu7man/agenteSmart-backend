@@ -28,7 +28,8 @@ export interface Message {
 	quick_reply?: QuickReply
     reply_to?: ReplayTo
     attachments?: Attachment[],
-    referral?:Referral
+    referral?: Referral
+    time?: Date
 }
 export interface QuickReply {
     payload: string
