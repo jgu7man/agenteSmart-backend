@@ -10,7 +10,9 @@
     "start": "npm run shell",
     "deploy": "tsc && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "debug": "nodemon -e ts --exec \"npm run serve\""
+    "debug": "nodemon -e ts --exec \"npm run serve\"",
+    "testip": "tsc && firebase serve -o 192.168.1.103",
+    "serveip": "nodemon -e ts --exec \"npm run testip\""
   },
   "engines": {
     "node": "12"

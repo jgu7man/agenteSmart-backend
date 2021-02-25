@@ -13,8 +13,8 @@ export default class SessionRoutes{
 
     declareRoutes(): void {
         // this.router.post('/detectInput', this.sessionController.intentAttempt)
-        this.router.post('/', this.sessionController.detectIntent);
-        this.router.post('/:sessionId', this.sessionController.detectIntent);
+        this.router.post('/', this.sessionController.agentResponse);
+        this.router.post('/:sessionId', this.sessionController.agentResponse);
     }
 
 }

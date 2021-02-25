@@ -1,4 +1,5 @@
 import { firestore } from "../middlewares/firebase.mid";
+import  firebase  from "firebase-admin"
 import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
 
 import { Response, Request } from "express";
@@ -18,6 +19,11 @@ import {
 	Card,
 } from "./../interfaces/session.interfaces";
 import { IntentDetectedParam, SysInterface, SystemType } from "../interfaces/parameter.interface";
+import {
+	ClientRequest,
+	SessionBody,
+	UserIDs
+} from "../interfaces/conversation.interface";
 
 
 
@@ -26,91 +32,130 @@ export default class SessionController {
 	
 	private _Contexts: Array<any>;
 	private _parentPath: string;
+	private _projectPath: string;
+	private userId: string
+	private sessionPath: string;
 	
 
-	// ANCHOR DETECT INTENT (ROOT)
-	public detectIntent = async (req: Request, res: Response): Promise<void> => {
-		try {
-			const { projectId, textInput, clientId } = req.body;
-			const sessionClient = new SessionsClient( { credentials: keyFilename } );
-			console.log("\x1b[35m%s\x1b[33m", "Session:", req.body.sessionId )
-			const sessionId = req.body.sessionId
-				? req.body.sessionId
-				: uuidv4();
-			this._Contexts = req.body.inputContexts ? req.body.inputContexts : []
-			console.log("\x1b[35m%s\x1b[33m", "Contexts length:", this._Contexts.length )
+	public detectIntent = async ( body: ClientRequest ) => {
+		console.log( body )
+		
+		// GET CLIENT DATA
+		const { projectId, textInput, clientId, userIDs } = body;
+		this.userId = userIDs ? userIDs.userId ? userIDs.userId : null : null;
+		this._projectPath = `/usuarios/${ clientId }/agentes/${ projectId }`;
+			
 
+		// GET SESSION DATA
+		let session = await this.searchForSessionId( userIDs )
+		const sessionId = session
+			? session.sessionId ? session.sessionId
+			: uuidv4() : uuidv4();
+		this._Contexts = session ? session.outputContexts : []
+		console.log( "\x1b[35m%s\x1b[33m", "Session:", sessionId )
+		// console.log("\x1b[35m%s\x1b[33m", "Contexts length:", this._Contexts.length )
+		const sessionClient = new SessionsClient( { credentials: keyFilename } );
+		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
-			const sessionPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
-			this._parentPath = sessionPath;
-
-			// REVIEW Se integró en el body de la query los contextos pero no se tuvo éxito
-			const request = {
-				session: sessionPath,
-				queryInput: {
-					text: {
-						// The query to send to the dialogflow agent
-						text: textInput,
-						// The language used by the client (en-US)
-						languageCode: "es",
-					},
+		
+		
+		// REVIEW Se integró en el body de la query los contextos pero no se tuvo éxito
+		const request = {
+			session: this._parentPath,
+			queryInput: {
+				text: {
+					text: textInput,
+					languageCode: "es",
 				},
-				queryParams: {
-					contexts: this._Contexts
-				}
+			},
+			queryParams: {
+				contexts: this._Contexts
+			}
+		};
+
+
+		
+		
+		//Inicia la secuenia
+		// console.log("\x1b[35m%s\x1b[33m", "Request", request)
+		const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
+		// console.log( response )
+
+		if ( response.queryResult.intent ) {
+			const intent = response.queryResult.intent
+			//retrive all contextFromSession:
+			// console.log( 'Respuesta de Dialogflow', response.queryResult );
+			// console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
+			console.log( "\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName );
+	
+			// console.log(response.queryResult.intent.parameters)
+			// console.log("Antes de llegar a la asginacion: ", req.body);
+			// const agent = new WebhookClient({ request: req, response: res });
+			const sessionResult = <QueryResult> {
+				...response.queryResult,
+				clientId,
+				sessionId,
+				projectId,
 			};
-
-
-			//Inicia la secuenia
-			console.log("\x1b[35m%s\x1b[33m", "Request", request)
-			const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
-			console.log( response )
-			if ( response.queryResult.intent ) {
-				
-				//retrive all contextFromSession:
-				// console.log( 'Respuesta de Dialogflow', response.queryResult );
-				// console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
-				console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName);
 	
-				// console.log(response.queryResult.intent.parameters)
-				// console.log("Antes de llegar a la asginacion: ", req.body);
-				// const agent = new WebhookClient({ request: req, response: res });
-				const sessionResult = <QueryResult>{
-					...response.queryResult,
-					clientId: clientId,
-					sessionId,
-					projectId,
-				};
-	
-				const getRespuestas = await this.retriveMessagesFromFireStore(
+			const getRespuestas = await
+				this.retriveMessagesFromFireStore(
 					clientId,
 					projectId,
 					sessionResult.intent.name
 				);
 	
-				// console.log({getRespuestas})
-				if (getRespuestas) {
-					const {answers, outputContexts} = await this.ManageResponsesController(getRespuestas, sessionResult, clientId);
+			// console.log({getRespuestas})
+			if ( getRespuestas ) {
+				const { answers, outputContexts } = await this.ManageResponsesController( getRespuestas, sessionResult, clientId )
 	
-					// console.info("\n\tExito!\n\tSe han retornado las siguientes respuestas:\n\t\t", validatedResponses);
-	
-					// if (validatedResponses) {
-					// }
-	
-					res.status(200).json({
-						message: "Exito",
-						session: sessionId,
-						respuestas: answers,
-						contextos: outputContexts
-					});
-					return;
+				if ( outputContexts.length === 0 ) {
+					this._deleteSession()
+				} else {
+					const sessionBody: SessionBody = {
+						sessionId,textInput,answers,outputContexts,
+						intentId: intent.name,
+						intentName: intent.displayName,
+					}
+						
+					this._saveSession( sessionBody )
 				}
+
 				
-				res.status(404).json({
-					message: "No se encontro base de datos con ese clientId y projectId",
-				});
+				const response = {
+					message: "Intent detectado",
+					respuestas: answers,
+				}
+
+				return response
+	
+			} else { return null }
+
+		} else { return null}
+		
+	}
+
+	// ANCHOR DETECT INTENT (ROOT)
+	public agentResponse = async (req: Request, res: Response): Promise<void> => {
+		try {
+			
+			const { projectId, textInput, clientId } = req.body;
+			
+			const body: ClientRequest = {
+				projectId, textInput, clientId,
+				sessionId: req.body.sessionId ? req.body.sessionId : null,
+				inputContexts: req.body.inputContexts ? req.body.inputContexts : null,
+				userIDs: req.body.userIDs
+			}
+			
+			const response = await this.detectIntent(body)
+
+			if(response) {
+
+				res.status(200).json(response);
+				
 			} else {
-				res.status(404).json({
+				res.status(200).json({
 					message: "No se detectó intent",
 				});
 				
@@ -140,7 +185,6 @@ export default class SessionController {
 		documents.forEach(doc => {
 			respuestas.push(doc.data());
 		});
-		console.log( respuestas )
 		return respuestas;
 	}
 
@@ -197,11 +241,12 @@ export default class SessionController {
 		}
 		
 		// console.log( promisesToHandle )
-		const answers: ApiMessagesSucceeded[] = await Promise.all( promisesToHandle )
+		let answers: ApiMessagesSucceeded[] = await Promise.all( promisesToHandle )
 			.catch(error => {
 				console.error("Error en la ejecucion de las validaciones", error);
 				return [...error];
 			} );
+		answers = answers.filter( a => a )
 		
 		// console.log( answers )
 		const outputContexts: Array<Context> = [];
@@ -383,6 +428,17 @@ export default class SessionController {
 		});
 	}
 
+
+	// ANCHOR DELETE SESSION 
+	private async _deleteSession() {
+		console.log('borrar',  this.sessionPath )
+		let sessionRef= firestore.doc(this.sessionPath)
+		await sessionRef.update( {
+			sessionId: firebase.firestore.FieldValue.delete(),
+			outputContexts: firebase.firestore.FieldValue.delete()
+		})
+		return
+	}
 	// private async _retriveAllContexts() {
 	// 	const contextClient = new ContextsClient({ credentials: keyFilename });
 	// 	// Parent Format: projects/<Project ID>/agent/sessions/<Session ID>
@@ -506,5 +562,83 @@ export default class SessionController {
 
 		console.log( result );
 		return result;
+	}
+
+	// ANCHOR Search for session by user IDs
+	private async searchForSessionId( userIDs: UserIDs ): Promise<any> {
+		const clientsColPath = `${ this._projectPath }/clientes`
+		const clientsRef = firestore.collection(clientsColPath)
+		const userDoc = await clientsRef.doc( userIDs.userId ).get()
+		if ( !userDoc.exists ) {
+			if ( userIDs.messengerId || userIDs.whatsappId ) {
+				
+				const userFinded = await firestore.collection( clientsColPath )
+				.where( 'messengerId', '==', userIDs.messengerId )
+				.where( 'whatsappId', '==', userIDs.whatsappId )
+				.get()
+				
+
+				if ( !userFinded.empty ) {
+				
+					this.userId = userFinded.docs[ 0 ].id	
+					this.sessionPath = `${ clientsColPath }/${ this.userId }`
+					console.log( this.sessionPath )
+					let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
+						? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
+					let outputContexts = userFinded.docs[ 0 ].data()[ 'outputContexts' ]
+						? userFinded.docs[ 0 ].data()[ 'outputContexts' ] : null
+					return {sessionId, outputContexts}
+			} else {
+				return null
+				}
+			}
+		} else {
+			this.sessionPath = `${ clientsColPath }/${ this.userId }`
+			let sessionId = userDoc.data()[ 'sessionId' ]
+				? userDoc.data()[ 'sessionId' ] : null
+			let outputContexts = userDoc.data()[ 'outputContexts' ]
+				? userDoc.data()['outputContexts'] : null
+			return {sessionId, outputContexts}
+		}
+
+		
+	}
+
+	private async _saveSession(sessionBody: SessionBody) {
+		const clientsColPath = `${ this._projectPath }/clientes`
+		const clientsRef = firestore.collection( clientsColPath )
+		const session = {
+			sessionId: sessionBody.sessionId,
+			outputContexts: sessionBody.outputContexts
+		} 
+		const respuestas = sessionBody.answers.map( a => a.text )
+		const conversation = {
+			usuario: sessionBody.textInput, 
+			agente: respuestas,
+			intent: {
+				intentId: sessionBody.intentId,
+				intentName: sessionBody.intentName
+			}
+		}
+
+		console.log( this.userId )
+
+		if ( !this.userId ) {
+			clientsRef.add(session ).then( c => {
+				c.collection('conversacion').add(conversation)
+			})
+		} else {
+			const clientRef = clientsRef.doc( this.userId )
+			const clientDoc = await clientRef.get()
+			if ( clientDoc.exists ) {
+				clientRef.update(session)
+			} else {
+				clientsRef.doc(this.userId).set( session )
+			}
+			clientRef.collection( 'conversacion' ).add( conversation )
+		}
+		// let clientPath = this._currentUser ?  `${clientsColPath}/${this._currentUser}`
+		
+					
 	}
 }
