@@ -1,4 +1,5 @@
 import { firestore } from "../middlewares/firebase.mid";
+firestore.settings({ignoreUndefinedProperties: true})
 import  firebase  from "firebase-admin"
 import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
 
@@ -21,6 +22,7 @@ import {
 import { IntentDetectedParam, SysInterface, SystemType } from "../interfaces/parameter.interface";
 import {
 	ClientRequest,
+	IntentResponse,
 	SessionBody,
 	UserIDs
 } from "../interfaces/conversation.interface";
@@ -28,21 +30,21 @@ import {
 
 
 
-export default class SessionController {
+export class SessionController {
 	
 	private _Contexts: Array<any>;
 	private _parentPath: string;
 	private _projectPath: string;
-	private userId: string
+	private userIDs: UserIDs
 	private sessionPath: string;
 	
 
-	public detectIntent = async ( body: ClientRequest ) => {
+	public detectIntent = async ( body: ClientRequest ): Promise<IntentResponse> => {
 		console.log( body )
 		
 		// GET CLIENT DATA
-		const { projectId, textInput, clientId, userIDs } = body;
-		this.userId = userIDs ? userIDs.userId ? userIDs.userId : null : null;
+		const {clientId, projectId, textInput, userIDs } = body;
+		this.userIDs = userIDs 
 		this._projectPath = `/usuarios/${ clientId }/agentes/${ projectId }`;
 			
 
@@ -123,7 +125,7 @@ export default class SessionController {
 
 				
 				const response = {
-					message: "Intent detectado",
+					message: "ok",
 					respuestas: answers,
 				}
 
@@ -565,40 +567,53 @@ export default class SessionController {
 	}
 
 	// ANCHOR Search for session by user IDs
-	private async searchForSessionId( userIDs: UserIDs ): Promise<any> {
+	public async searchForSessionId( userIDs: UserIDs ): Promise<any> {
 		const clientsColPath = `${ this._projectPath }/clientes`
-		const clientsRef = firestore.collection(clientsColPath)
-		const userDoc = await clientsRef.doc( userIDs.userId ).get()
-		if ( !userDoc.exists ) {
-			if ( userIDs.messengerId || userIDs.whatsappId ) {
+		const clientsRef = firestore.collection( clientsColPath )
+		if ( userIDs.userId ) {
+			const userDoc = await clientsRef.doc( userIDs.userId ).get()
+			if ( userDoc.exists ) {
+				this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
+				let sessionId = userDoc.data()[ 'sessionId' ]
+					? userDoc.data()[ 'sessionId' ] : null
+				let outputContexts = userDoc.data()[ 'outputContexts' ]
+					? userDoc.data()['outputContexts'] : null
+				return {sessionId, outputContexts}
+			 } else { return null }
+			
+		} else if ( userIDs.messengerId || userIDs.whatsappId ) {
 				
-				const userFinded = await firestore.collection( clientsColPath )
-				.where( 'messengerId', '==', userIDs.messengerId )
-				.where( 'whatsappId', '==', userIDs.whatsappId )
-				.get()
-				
+			const platform = userIDs.messengerId 
+				? 'messengerId' : 'whatsappId'
+			
+			const userFinded = await clientsRef
+			.where( platform, '==', userIDs[platform] )
+			.get()
+			
 
-				if ( !userFinded.empty ) {
-				
-					this.userId = userFinded.docs[ 0 ].id	
-					this.sessionPath = `${ clientsColPath }/${ this.userId }`
-					console.log( this.sessionPath )
-					let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
-						? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
-					let outputContexts = userFinded.docs[ 0 ].data()[ 'outputContexts' ]
-						? userFinded.docs[ 0 ].data()[ 'outputContexts' ] : null
-					return {sessionId, outputContexts}
+			if ( !userFinded.empty ) {
+			
+				this.userIDs.userId = userFinded.docs[ 0 ].id	
+				this.userIDs[platform] = userFinded.docs[0].data()[platform]
+				this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
+				console.log( this.sessionPath )
+				let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
+					? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
+				let outputContexts = userFinded.docs[ 0 ].data()[ 'outputContexts' ]
+					? userFinded.docs[ 0 ].data()[ 'outputContexts' ] : null
+				return {sessionId, outputContexts}
 			} else {
+				clientsRef.add( this.userIDs )
+					.then( doc => {
+						this.userIDs.userId = doc.id
+						clientsRef.doc( doc.id ).update( { userId: doc.id } )
+					} )
 				return null
-				}
 			}
+				
 		} else {
-			this.sessionPath = `${ clientsColPath }/${ this.userId }`
-			let sessionId = userDoc.data()[ 'sessionId' ]
-				? userDoc.data()[ 'sessionId' ] : null
-			let outputContexts = userDoc.data()[ 'outputContexts' ]
-				? userDoc.data()['outputContexts'] : null
-			return {sessionId, outputContexts}
+			
+			return null
 		}
 
 		
@@ -621,19 +636,19 @@ export default class SessionController {
 			}
 		}
 
-		console.log( this.userId )
+		console.log( this.userIDs )
 
-		if ( !this.userId ) {
+		if ( !this.userIDs.userId ) {
 			clientsRef.add(session ).then( c => {
 				c.collection('conversacion').add(conversation)
 			})
 		} else {
-			const clientRef = clientsRef.doc( this.userId )
+			const clientRef = clientsRef.doc( this.userIDs.userId )
 			const clientDoc = await clientRef.get()
 			if ( clientDoc.exists ) {
 				clientRef.update(session)
 			} else {
-				clientsRef.doc(this.userId).set( session )
+				clientsRef.doc(this.userIDs.userId).set( session )
 			}
 			clientRef.collection( 'conversacion' ).add( conversation )
 		}

@@ -4,9 +4,9 @@ export interface ClientRequest {
     projectId: string,
     textInput:string,
     clientId: string,
-    sessionId: string,
-    inputContexts: any[],
-    userIDs: UserIDs
+    sessionId?: string,
+    inputContexts?: any[],
+    userIDs?: UserIDs
 }
 
 export interface SessionBody {
@@ -19,7 +19,7 @@ export interface SessionBody {
 }
 
 export interface UserIDs {
-    userId: string,
+    userId?: string,
     messengerId?: string,
     whatsappId?:string
 }
@@ -27,4 +27,9 @@ export interface UserIDs {
 export interface ConversationSession {
     sessionId: string,
     inputContexs: any[]
+}
+
+export interface IntentResponse {
+    message: string;
+    respuestas?: ApiMessagesSucceeded[];
 }

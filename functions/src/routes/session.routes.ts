@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import SessionController from '../controllers/session.controller';
+import {SessionController} from '../controllers/session.controller';
 
 export default class SessionRoutes{
     public router: Router;

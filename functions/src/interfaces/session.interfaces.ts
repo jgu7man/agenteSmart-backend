@@ -46,8 +46,10 @@ export interface Card {
     imageUri?: string,
     buttons?: CardButton[]
 }export interface CardButton {
-        text?: string,
-        postback?: string
+    text?: string,
+    postback?: any,
+    type?: 'web_url' | 'postback'
+    url: string
 }
 
 export type Result =
@@ -100,7 +102,8 @@ export interface ParameterFromQueryResult{
 
 export interface Suggest {
     text: string
-    context:string
+    context: string
+    image_url?: string
 }
 
 interface fromDialogflowApi<T> {
