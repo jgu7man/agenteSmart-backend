@@ -1,14 +1,15 @@
-import { Project, Agent, IPreProject } from '../interfaces/agent.interface';
+import { IProject, Agent, IPreProject } from '../interfaces/agent.interface';
 import { keyFilename } from "../index";
-import { Resource } from '@google-cloud/resource';
+import { Resource, Project } from '@google-cloud/resource';
 import dialogflow from '@google-cloud/dialogflow';
 import { Request, Response } from 'express';
+import { firestore } from "../middlewares/firebase.mid";
 
 // Start writing Firebase Functions
 // const keyFilename = path.join( __dirname + '/main-agentesmart-589511385b0d.json' );
 
 // https://firebase.google.com/docs/functions/typescript
-async function createProject( project: Project ): Promise<Project | unknown | any> {
+async function createProject( project: IProject ): Promise<IProject | unknown | any> {
     // This method looks for the GCLOUD_PROJECT and GOOGLE_APPLICATION_CREDENTIALS
     // environment variables.
 
@@ -72,7 +73,7 @@ export function create(req: Request, res: Response): void{
             } )
             .then( response => {
                 //create Agent
-                const currentProject: Project = response;
+                const currentProject: IProject = response;
                 const agent: Agent | any = {
                     parent: currentProject.projectId,
                     displayName: displayName
@@ -102,3 +103,32 @@ export function create(req: Request, res: Response): void{
 // export function importAgente( req: Request, res: Response ) {
     
 // }
+
+
+export async function deleteProject( req: Request, res: Response ) {
+    const
+        projectId: any = req.query['projectId'],
+        clientId:any  = req.query['clientId'];
+    
+    try {
+        firestore.doc(`usuarios/${clientId}/agentes/${projectId}`).delete()
+    } catch (error) {
+        console.error( error )
+        res.status( 400 ).json( {
+            error, message: "Falla al borrar en firestore"
+        })
+    }
+    
+    
+    const resource = new Resource( { credentials: keyFilename } );
+    const project = new Project(resource, projectId)
+    return await project.delete()
+        .then( data => {
+            console.log('Project deleted')
+            res.status(200).json({data, message: 'Project deleted'})
+        } )
+        .catch( error => {
+            console.error( error )
+            res.status(500).send({error, message:'Error al borrar el projecto'})
+        })
+}

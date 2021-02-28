@@ -12,6 +12,11 @@ export default class AgentRoutes {
     }
 
     public routes(): void {
-        this.router.post( '/create', ( req: Request, res: Response ): void => { agentes.create( req, res) } )
+        this.router.post( '/create', ( req: Request, res: Response ): void => {
+            agentes.create( req, res )
+        } )
+        this.router.delete( '/delete', ( req: Request, res: Response ): void => {
+            agentes.deleteProject( req, res )
+        })
     }
 }

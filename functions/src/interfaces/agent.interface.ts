@@ -1,6 +1,6 @@
 import { google } from '@google-cloud/dialogflow/build/protos/protos';
 
-export interface Project{
+export interface IProject{
     displayName: string;
     projectId: string;
     parent: {
