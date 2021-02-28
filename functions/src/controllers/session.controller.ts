@@ -624,7 +624,8 @@ export class SessionController {
 		const clientsRef = firestore.collection( clientsColPath )
 		const session = {
 			sessionId: sessionBody.sessionId,
-			outputContexts: sessionBody.outputContexts
+			outputContexts: sessionBody.outputContexts,
+			lastUpdate: new Date()
 		} 
 		const respuestas = sessionBody.answers.map( a => a.text )
 		const conversation = {
@@ -633,7 +634,8 @@ export class SessionController {
 			intent: {
 				intentId: sessionBody.intentId,
 				intentName: sessionBody.intentName
-			}
+			},
+			time: new Date()
 		}
 
 		console.log( this.userIDs )
