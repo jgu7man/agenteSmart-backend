@@ -108,27 +108,35 @@ export function create(req: Request, res: Response): void{
 export async function deleteProject( req: Request, res: Response ) {
     const
         projectId: any = req.query['projectId'],
-        clientId:any  = req.query['clientId'];
+        clientId: any = req.query['clientId'],
+        resource = new Resource({ credentials: keyFilename }),
+        project = new Project(resource, projectId),
+        projectRef = firestore.doc(`usuarios/${clientId}/agentes/${projectId}`),
+        collections = ['clientes','colecciones', 'contextos', 'integraciones', 'mensajes', 'parametros', 'tarjetas', 'tipos'];
     
     try {
-        firestore.doc(`usuarios/${clientId}/agentes/${projectId}`).delete()
+        let data = await project.delete() 
+        .then( () => { console.log('Project deleted') } )
+        .catch( error => {
+            console.error( error )
+            return res.status(500).send({error, message:'Error al borrar el projecto'})
+        })
+        
+        collections.forEach(async col => {
+            const currentCol = await (await projectRef.collection(col).get())
+            const size = currentCol.size
+            if (size > 0) currentCol.forEach( doc => doc.ref.delete())
+        })
+
+        projectRef.delete()
+        return res.status(200).json({data, message: 'Project deleted'})
     } catch (error) {
         console.error( error )
-        res.status( 400 ).json( {
+        return res.status( 400 ).json( {
             error, message: "Falla al borrar en firestore"
         })
     }
     
     
-    const resource = new Resource( { credentials: keyFilename } );
-    const project = new Project(resource, projectId)
-    return await project.delete()
-        .then( data => {
-            console.log('Project deleted')
-            res.status(200).json({data, message: 'Project deleted'})
-        } )
-        .catch( error => {
-            console.error( error )
-            res.status(500).send({error, message:'Error al borrar el projecto'})
-        })
+    
 }

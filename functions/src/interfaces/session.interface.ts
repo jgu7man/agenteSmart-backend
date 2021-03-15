@@ -14,7 +14,7 @@ type Condition =
 // Defined types for array of answers received from firestore
 export interface SimpleOutput {
     text: string;
-    suggests: Suggest[],
+    suggestions: Suggestions[],
 }
 export interface ContionalOutput extends SimpleOutput {
     condicion: Condition;
@@ -30,13 +30,14 @@ export interface DataParty extends SimpleOutput  {
     coleccion: string;
     key: string;
     parametro: string;
-    suggests: Suggest[]
+    suggestions: Suggestions[]
 }
 
 export interface ResponseResult{
     text?: string,
-    suggests?: Suggest[],
-    cards?: Card[]
+    suggestions?: Suggestions[],
+    cards?: Card[],
+    asDefault?: boolean | undefined | null
 }
 
 export interface Card {
@@ -68,7 +69,7 @@ type TypeOfAnswer =
     id: string;
     index: number;
     inputContext: string;
-    outputContext: string;
+    outputContexts: string[];
     tipo: TypeOfAnswer;
     result: Result;
 }
@@ -100,7 +101,7 @@ export interface ParameterFromQueryResult{
     fields: fromDialogflowApi<any> | object
 }
 
-export interface Suggest {
+export interface Suggestions {
     text: string
     context: string
     image_url?: string
@@ -118,5 +119,11 @@ interface fromDialogflowApi<T> {
 export type GetDocs<doc> = Partial<doc>
 
 export type ApiMessagesSucceeded = ResponseResult & {
-    outputContext: string
+    outputContexts: string[]
+}
+
+export interface iResponseValidate {
+    result: Result,
+    outputContexts: string[],
+    parameters?: Map<string, any>
 }

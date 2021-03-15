@@ -1,4 +1,4 @@
-import { ApiMessagesSucceeded, } from './../interfaces/session.interfaces';
+import { ApiMessagesSucceeded, } from '../interfaces/session.interface';
 import { Response, Request } from "express";
 import { Event, Message } from '../interfaces/webhook.interface';
 import { firestore } from "../middlewares/firebase.mid";
@@ -125,10 +125,10 @@ export default class MessengerWebhook {
         responses.forEach( async response => {
             // await this.waitFor(5000)
             console.log( response )
-            if ( response.suggests && response.suggests.length > 0 ) {
+            if ( response.suggestions && response.suggestions.length > 0 ) {
                 console.log('send quick responses')
                 let suggests: QuickReply[] = []
-                response.suggests.forEach( suggestion => {
+                response.suggestions.forEach( suggestion => {
                     suggests.push( {
                         content_type: "text",
                         title:suggestion.text,

@@ -1,4 +1,4 @@
-import { ApiMessagesSucceeded } from "./session.interfaces";
+import { ApiMessagesSucceeded } from "./session.interface";
 
 export interface ClientRequest {
     projectId: string,
