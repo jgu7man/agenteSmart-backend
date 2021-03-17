@@ -117,6 +117,7 @@ interface fromDialogflowApi<T> {
 //ESTOS PARAMETROS ES UN MAP DE LA ESTRUCTURA CON SU KEY
 // ES DEECIR<STRING, | LISTAS| STRING | MAP/object | NULL | BOOLEAN>
 export type GetDocs<doc> = Partial<doc>
+export type ParamType = 'boolValue' | 'stringValue' | 'listValue' | 'nullValue' | 'numberValue' | 'structValue'
 
 export type ApiMessagesSucceeded = ResponseResult & {
     outputContexts: string[]
@@ -127,3 +128,12 @@ export interface iResponseValidate {
     outputContexts: string[],
     parameters?: Map<string, any>
 }
+
+
+export interface ParamField {
+    [key: string]:{
+        stringValue: string,
+        kind: 'stringValue',
+    }
+}
+

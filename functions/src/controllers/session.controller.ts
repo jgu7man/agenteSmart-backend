@@ -3,6 +3,7 @@ firestore.settings({ignoreUndefinedProperties: true})
 import  firebase  from "firebase-admin"
 import { ContextsClient, SessionsClient } from "@google-cloud/dialogflow";
 
+
 import { Response, Request } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { keyFilename } from "../index";
@@ -18,6 +19,8 @@ import {
 	DataParty,
 	Card,
 	iResponseValidate,
+	ParamType,
+	// ParamField,
 } from "../interfaces/session.interface";
 import { IntentDetectedParam, SysInterface, SystemType } from "../interfaces/parameter.interface";
 import {
@@ -26,6 +29,7 @@ import {
 	SessionBody,
 	UserIDs
 } from "../interfaces/conversation.interface";
+import { google } from "@google-cloud/dialogflow/build/protos/protos";
 
 
 
@@ -37,22 +41,22 @@ export class SessionController {
 	private _projectPath: string;
 	private userIDs: UserIDs
 	private sessionPath: string;
+	private _sessionParams: {[key:string]:any} = {}
 	
 
 	
-	// ANCHOR DETECT INTENT (ROOT)
+	// SECTION DETECT INTENT (ROOT)
 	public detectIntent = async ( body: ClientRequest ): Promise<IntentResponse> => {
-		console.log("\n\n",  body )
+		// console.log("\n\n",  body )
 		
-		// GET CLIENT DATA
+		//STUB GET CLIENT DATA
 		const {clientId, projectId, textInput, userIDs } = body;
 		this.userIDs = userIDs 
 		this._projectPath = `/usuarios/${ clientId }/agentes/${ projectId }`;
 			
 
-		// GET SESSION DATA
+		//STUB GET SESSION DATA
 		let session = await this.searchForSessionId(userIDs)
-		// console.log( this.sessionPath )
 		if (!session) console.log(  "\x1b[35m", 'Sesión nueva' )
 		const sessionId = session
 			? session.sessionId ? session.sessionId
@@ -60,11 +64,11 @@ export class SessionController {
 		this._Contexts = session ? session.outputContexts : []
 		console.log( "\x1b[35m%s\x1b[33m", "Session:", sessionId )
 		console.log( "\x1b[35m%s\x1b[33m", "ProjectId:", projectId )
-		// console.log("\x1b[35m%s\x1b[33m", "Contexts length:", this._Contexts.length )
+		
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
-		
+		//STUB SET REQUEST BODY
 		const request = {
 			session: this._parentPath,
 			queryInput: {
@@ -78,43 +82,50 @@ export class SessionController {
 			}
 		};
 
-
-		
-		
-		//Inicia la secuenia
-		console.log("\x1b[35m%s\x1b[33m", "Request", request)
+		//STUB DETECT INTENT
 		const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
-		// console.log( response )
-
+		
+		//STUB CURATE INTENT DETECTED
 		if ( response.queryResult.intent ) {
 			const intent = response.queryResult.intent
-			//retrive all contextFromSession:
-			// console.log( 'Respuesta de Dialogflow', response.queryResult );
-			// console.log( 'Contextos', JSON.stringify(response.queryResult.outputContexts))
-			console.log( "\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName );
-	
-			// console.log(response.queryResult.intent.parameters)
-			// console.log("Antes de llegar a la asginacion: ", req.body);
-			// const agent = new WebhookClient({ request: req, response: res });
+			console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName );
+			// console.log("\x1b[35m%s\x1b[33m", "Response outputContexts:", response.queryResult.outputContexts );
+			// console.log("\x1b[35m%s\x1b[33m", "Response Parameters:", response.queryResult.parameters.fields);
+
+
+			//STUB STRUCTURE CONTEXT PARAMS 
+			this._saveSessionParams(response.queryResult.outputContexts)
+
+			
+			//STUB SET SESSION RESULT
 			const sessionResult = <QueryResult> {
 				...response.queryResult,
-				clientId,
-				sessionId,
-				projectId,
+				clientId,sessionId,projectId,
 			};
 	
-			const getRespuestas = await
+			//STUB GET RESPONSES FROM FIRESTORE
+			const responsesGetted = await
 				this.retriveMessagesFromFireStore(
 					clientId,
 					projectId,
 					sessionResult.intent.name
 				);
+				// console.log({getRespuestas})
 	
-			// console.log({getRespuestas})
-			if ( getRespuestas ) {
-				const { answers, outputContexts } = await this.ManageResponsesController( getRespuestas, sessionResult, clientId )
+			
+			
+			//STUB RETURN STRUCTURED RESPONSES
+			if (responsesGetted) {
+				
+				// GET ANSWERS AND OUTPUT CONTEXTS
+				const { answers, outputContexts } =
+					await this.ManageResponsesController(
+						responsesGetted, sessionResult, clientId
+					)
+					// console.log( "\x1b[34m", "output Contexts", outputContexts.length )
 	
-				console.log( "\x1b[34m", "output Contexts", outputContexts.length )
+				
+				//STUB SAVE OR DELETE SESSION
 				if (outputContexts.length === 0) {
 					this._deleteSession()
 				} else {
@@ -128,19 +139,18 @@ export class SessionController {
 				}
 
 				
-				const response = {
+				//STUB FINNALIZE EVENT
+				return {
 					message: "ok",
 					respuestas: answers,
 				}
-
-				return response
 	
 			} else { return null }
 
 		} else { return null}
 		
 	}
-
+	// !SECTION
 	
 	// SECTION RESPONSES
 	// ANCHOR FIND RESPUESTAS FIRESTORE
@@ -150,10 +160,11 @@ export class SessionController {
 		intentName: string
 	): Promise<Array<ResponseFromFirebase | null>> {
 		// /usuarios/{idUser}/agentes/{idProject}/mensajes/{intentName}/respuestas
-		const idName = intentName.slice(intentName.lastIndexOf("/") + 1);
+		const idName = this.trimNames(intentName)
 
 		const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
 
+		console.log( pathToCollection )
 		const intentRef = firestore.collection(pathToCollection).orderBy("index", "asc");
 		const respuestas: any[] = [];
 
@@ -223,7 +234,7 @@ export class SessionController {
 				return { ...error };
 			} );
 		
-		console.log("\x1b[35m", 'answers', answers)
+		// console.log("\x1b[35m", 'answers', answers)
 		answers = answers.filter( a => a )
 		if (answers.length > 1) {
 			answers = answers.filter( a => !a.asDefault)
@@ -283,7 +294,7 @@ export class SessionController {
 			
 		
 		
-		console.log( "\x1b[31m", "output contexts", outputContexts )
+		// console.log( "\x1b[31m%s\x1b[30", "output contexts", outputContexts )
 		return {answers, outputContexts}
 		// const responsesReturned = await this._controllerResponse();
 		// return responsesReturned;
@@ -429,12 +440,10 @@ export class SessionController {
 		// projects/<Project ID>/agent/sessions/<Session ID>
 		// Parent string format
 		
-		console.log( context )
+		// console.log( context )
 		const contextCreated = await contextClient.createContext({ parent: this._parentPath, context });
 		return new Promise((resolve, reject) => {
-			console.info( "Succefully Created context: ", contextCreated[ 0 ].name.slice(
-				contextCreated[ 0 ].name.lastIndexOf('/') + 1
-			))
+			console.info( "Succefully Created context: ", this.trimNames(contextCreated[ 0 ].name))
 			resolve(contextCreated[0]);
 		});
 	}
@@ -447,7 +456,8 @@ export class SessionController {
 	private async _deleteSession() {
 		let sessionRef = firestore.doc(this.sessionPath)
 		if ((await sessionRef.get()).exists) {
-			console.log('borrar',  this.sessionPath )
+			const contexts = await (await sessionRef.get()).get('outputContexts')
+			console.log('borrar',  contexts.filter((c:any) => this.trimNames(c.name)) )
 			await sessionRef.update( {
 				sessionId: firebase.firestore.FieldValue.delete(),
 				outputContexts: firebase.firestore.FieldValue.delete()
@@ -466,11 +476,12 @@ export class SessionController {
 	// ANCHOR SAVE SESSION
 	private async _saveSession(sessionBody: SessionBody) {
 		const clientsColPath = `${ this._projectPath }/clientes`
-		const clientsRef = firestore.collection( clientsColPath )
+		const clientsRef = firestore.collection(clientsColPath)
 		const session = {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
-			lastUpdate: new Date()
+			lastUpdate: new Date(),
+			sessionParams: this._sessionParams
 		} 
 		const respuestas = sessionBody.answers.map( a => a.text )
 		const conversation = {
@@ -483,7 +494,7 @@ export class SessionController {
 			time: new Date()
 		}
 
-		console.log( this.userIDs )
+		// console.log( this.userIDs )
 
 		if ( !this.userIDs.userId ) {
 			clientsRef.add(session ).then( c => {
@@ -509,13 +520,13 @@ export class SessionController {
 		const clientsColPath = `${ this._projectPath }/clientes`
 		const clientsRef = firestore.collection( clientsColPath )
 		if ( userIDs.userId ) {
-			const userDoc = await clientsRef.doc( userIDs.userId ).get()
 			this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
+			const userDoc = await clientsRef.doc( userIDs.userId ).get()
 			if (userDoc.exists) {
-				console.log( 'user exists' )
-				let sessionId = userDoc.data()[ 'sessionId' ]
+				// console.log( 'user exists' )
+				const sessionId = userDoc.data()[ 'sessionId' ]
 					? userDoc.data()[ 'sessionId' ] : null
-				let outputContexts = userDoc.data()[ 'outputContexts' ]
+				const outputContexts = userDoc.data()[ 'outputContexts' ]
 					? userDoc.data()['outputContexts'] : null
 				return {sessionId, outputContexts}
 			 } else { return null }
@@ -556,6 +567,27 @@ export class SessionController {
 			return null
 		}
 
+		
+	}
+
+
+	// ANCHOR Save params of session
+	private _saveSessionParams(
+		sessionContexts: google.cloud.dialogflow.v2.IContext[]
+	) {
+		sessionContexts.forEach(c => {
+			const fields = c.parameters.fields
+			Object.keys(fields).forEach(fieldName => {
+				
+				const valueName = Object.keys(fields[fieldName])[0] as ParamType
+				const value = fields[fieldName][valueName]
+				if (!this._sessionParams[fieldName] && value ) {
+					this._sessionParams[fieldName] = value
+				}
+			})
+			
+		})
+		console.log("\x1b[35m%s\x1b[33m", "Parameters", this._sessionParams)
 		
 	}
 
@@ -677,6 +709,9 @@ export class SessionController {
 		console.log( result );
 		return result;
 	}
+
+
+	
 	// !SECTION
 	
 
@@ -726,4 +761,9 @@ export class SessionController {
 			res.status(500).send("Error making session");
 		}
 	};
+
+	// STUB TRIM NAMES 
+	private trimNames(name: string) {
+		return name.slice(name.lastIndexOf('/')+1) 
+	}
 }
