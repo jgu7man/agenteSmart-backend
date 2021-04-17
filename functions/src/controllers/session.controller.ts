@@ -41,7 +41,8 @@ export class SessionController {
 	private _projectPath: string;
 	private userIDs: UserIDs
 	private sessionPath: string;
-	private _sessionParams: {[key:string]:any} = {}
+	private _sessionParams: { [key: string]: any } = {}
+	private data: { [key: string]:any } = {}
 	
 
 	
@@ -189,7 +190,7 @@ export class SessionController {
 		);
 		//setNewParams
 		queryResult.parameters = parametersToEvaluate;
-		// console.log('params to evaluate', parametersToEvaluate);
+		console.log('params to evaluate', parametersToEvaluate);
 		// console.log( 'array of awnsers', arrayOfAnswer )
 		// const parameterArray = queryResult.parameters;
 		// this._currentQueryResult.parameters.forEach( function(obj) {
@@ -395,8 +396,21 @@ export class SessionController {
 	): Promise<ApiMessagesSucceeded | null> => {
 		const dataParty = result as DataParty
 		const value = parameters.get(dataParty.parametro);
+		console.log(dataParty)
+		this._sessionParams[dataParty.parametro] = value
+		this.data[dataParty.parametro] = value
 
-		// console.log("\x1b[32m%s\x1b[37m", "DataGroup Criteria", { current: value, key: responseToValidate.key });
+		const clientsColPath = `${ this._projectPath }/clientes`
+		const clientsRef = firestore.collection(clientsColPath)
+		if ( !this.userIDs.userId ) {
+			clientsRef.add({data:this.data, lastUpdate: new Date()}).then( c => {
+				this.userIDs.userId = c.id
+			})
+		} else {
+			const clientRef = clientsRef.doc( this.userIDs.userId )
+			clientRef.set({data:this.data, lastUpdate: new Date()}, {merge: true} )
+			// }
+		}
 
 
 		if (value) {
@@ -481,7 +495,7 @@ export class SessionController {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
 			lastUpdate: new Date(),
-			sessionParams: this._sessionParams
+			sessionParams: this._sessionParams,
 		} 
 		const respuestas = sessionBody.answers.map( a => a.text )
 		const conversation = {
@@ -494,7 +508,7 @@ export class SessionController {
 			time: new Date()
 		}
 
-		// console.log( this.userIDs )
+		console.log( this.userIDs )
 
 		if ( !this.userIDs.userId ) {
 			clientsRef.add(session ).then( c => {
@@ -502,12 +516,12 @@ export class SessionController {
 			})
 		} else {
 			const clientRef = clientsRef.doc( this.userIDs.userId )
-			const clientDoc = await clientRef.get()
-			if ( clientDoc.exists ) {
-				clientRef.update(session)
-			} else {
-				clientsRef.doc(this.userIDs.userId).set( session )
-			}
+			// const clientDoc = await clientRef.get()
+			// if ( clientDoc.exists ) {
+			// 	clientRef.update(session)
+			// } else {
+				clientsRef.doc(this.userIDs.userId).set( session, {merge: true} )
+			// }
 			clientRef.collection( 'conversacion' ).add( conversation )
 		}
 		// let clientPath = this._currentUser ?  `${clientsColPath}/${this._currentUser}`
@@ -578,7 +592,7 @@ export class SessionController {
 		sessionContexts.forEach(c => {
 			const fields = c.parameters.fields
 			Object.keys(fields).forEach(fieldName => {
-				
+				console.log( fieldName )
 				const valueName = Object.keys(fields[fieldName])[0] as ParamType
 				const value = fields[fieldName][valueName]
 				if (!this._sessionParams[fieldName] && value ) {
@@ -610,29 +624,34 @@ export class SessionController {
 
 		return new Map(
 			newIterator.map( x => {
-				// console.log( '\n', '\x1b[33m%s\x1b[37m', 'x', x, '\n' )
+				// console.log( '\x1b[33m%s\x1b[37m', 'x', x, '\n' )
 				const paramValueTypeName = x[ 1 ][ "kind" ];
 				const paramName = x[ 0 ];
 				let paramValue: any
 				// console.log( paramValueTypeName )
-				if ( paramValueTypeName === "structValue" ) {
+				if (paramValueTypeName === "structValue") {
+					// console.log( 'is structValue' )
 					const fields = x[ 1 ][ paramValueTypeName ][ "fields" ]
 					// console.log( 'structValue',  fields)
 					paramValue = this._restructParamObject( fields )
 					
-				} else if ( paramValueTypeName === 'listValue' ) {	
+				} else if (paramValueTypeName === 'listValue') {	
+					// console.log( 'is listValue' )
+					// console.log(x[1])
+					// console.log( x[1][paramValueTypeName] )
 					const values = x[ 1 ][ paramValueTypeName ]['values']
-					// console.log( 'listValue', values )
-					const fields = values[ 0 ][ 'structValue' ][ 'fields' ]
+					// console.log('listValue', values)
+					// console.log( values[0] )
+					// const fields = values[ 0 ][ 'values' ][ 'fields' ]
 					// console.log( fields )
-					paramValue = this._restructParamObject( fields )
+					paramValue = this._restructParamObject( values )
 					
 				} else {
 					// console.log('otherValue', x[1][paramValueTypeName] )
 					paramValue = x[ 1 ][ paramValueTypeName ]
 				}
 
-				// console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
+				console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
 
 				return [paramName, paramValue];
 			})
@@ -642,12 +661,16 @@ export class SessionController {
 	// ANCHOR Replace parameters in text
 	private _replaceParameters( _paramsMap: Map<string, any>, text_: string ) {
 		let text
+		// console.log( text_ )
+
+		
+
 		if (text_.includes("$")) {
 			const posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
 			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
 			const variable = posibleVariable[0];
 
-			console.log("\x1b[35m%s\x1b[37m", "variable", variable);
+			// console.log("\x1b[35m%s\x1b[37m", "variable", variable);
 			const value = _paramsMap.get(variable);
 			text = text_.replace(
 				posibleVariable.length > 1
@@ -679,31 +702,36 @@ export class SessionController {
 	private _restructParamObject(object: IntentDetectedParam): SysInterface {
 		let result: any;
 		const entityTypeName: SystemType = this._getSystemEntityTypeName( object );
-		console.log( entityTypeName )
+		// console.log(entityTypeName)
+		// console.log( object )
 
-		// Assing date values
-		if (
-			entityTypeName === "datetime" ||
-			entityTypeName === "dateperiod" ||
-			entityTypeName === "datetimeperoid" ||
-			entityTypeName === "timeperiod"
-		) {
-			Object.keys(object).forEach(key => {
-				const kindValue = object[key]["kind"];
-				result[key] = new Date(object[key][kindValue]);
-			});
-		} else if (
-			entityTypeName === "duration" ||
-			entityTypeName === "unitcurrency" ||
-			entityTypeName === "location"
-		) {
-			Object.keys(object).forEach(key => {
-				const kindValue = object[key]["kind"];
-				result[key] = object[key][kindValue];
-			});
+		if (Array.isArray(object)) {
+			result = object
 		} else {
-			const kindValue = object["name"]["kind"];
-			result = object["name"][kindValue];
+			// Assing date values
+			if (
+				entityTypeName === "datetime" ||
+				entityTypeName === "dateperiod" ||
+				entityTypeName === "datetimeperoid" ||
+				entityTypeName === "timeperiod"
+			) {
+				Object.keys(object).forEach(key => {
+					const kindValue = object[key]["kind"];
+					result[key] = new Date(object[key][kindValue]);
+				});
+			} else if (
+				entityTypeName === "duration" ||
+				entityTypeName === "unitcurrency" ||
+				entityTypeName === "location"
+			) {
+				Object.keys(object).forEach(key => {
+					const kindValue = object[key]["kind"];
+					result[key] = object[key][kindValue];
+				});
+			} else {
+				const kindValue = object["name"]["kind"];
+				result = object["name"][kindValue];
+			}
 		}
 
 		console.log( result );
