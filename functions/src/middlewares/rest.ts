@@ -9,7 +9,7 @@ import entityRoutes from '../routes/entity.routes';
 import SessionRoutes from '../routes/session.routes';
 
 import { config } from "dotenv";
-import WhatsappRoutes from '../routes/whatspp.routes';
+// import WhatsappRoutes from '../routes/whatspp.routes';
 
 export class Rest {
 	
@@ -29,7 +29,7 @@ export class Rest {
 		this.app.use('/intent', new IntentRoutes().router);
 		this.app.use('/entity', entityRoutes());
 		this.app.use( '/session', new SessionRoutes().router )
-		this.app.use('/whatsapp', new WhatsappRoutes().router)
+		// this.app.use('/whatsapp', new WhatsappRoutes().router)
 	}
 	
 	private initMiddleware(): void {
