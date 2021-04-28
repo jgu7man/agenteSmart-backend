@@ -65,3 +65,5 @@ node_modules/
 # dotenv environment variables file
 .env
 functions/lib/agenteSmart-backend/functions/src/secret/main-agentesmart-589511385b0d.json
+.vscode/settings.json
+.vscode/settings.json
