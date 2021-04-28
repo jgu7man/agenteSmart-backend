@@ -396,7 +396,7 @@ export class SessionController {
 	): Promise<ApiMessagesSucceeded | null> => {
 		const dataParty = result as DataParty
 		const value = parameters.get(dataParty.parametro);
-		console.log(dataParty)
+		// console.log(dataParty)
 		this._sessionParams[dataParty.parametro] = value
 		this.data[dataParty.parametro] = value
 
@@ -592,7 +592,7 @@ export class SessionController {
 		sessionContexts.forEach(c => {
 			const fields = c.parameters.fields
 			Object.keys(fields).forEach(fieldName => {
-				console.log( fieldName )
+				// console.log( fieldName )
 				const valueName = Object.keys(fields[fieldName])[0] as ParamType
 				const value = fields[fieldName][valueName]
 				if (!this._sessionParams[fieldName] && value ) {
@@ -651,7 +651,7 @@ export class SessionController {
 					paramValue = x[ 1 ][ paramValueTypeName ]
 				}
 
-				console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
+				// console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
 
 				return [paramName, paramValue];
 			})
@@ -734,7 +734,7 @@ export class SessionController {
 			}
 		}
 
-		console.log( result );
+		// console.log( result );
 		return result;
 	}
 
