@@ -68,7 +68,7 @@ type TypeOfAnswer =
   export interface ResponseFromFirebase{
     id: string;
     index: number;
-    inputContext: string;
+    inputContexts: string[];
     outputContexts: string[];
     tipo: TypeOfAnswer;
     result: Result;

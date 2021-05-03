@@ -36,7 +36,7 @@ import { google } from "@google-cloud/dialogflow/build/protos/protos";
 
 export class SessionController {
 	
-	private _Contexts: Array<any>;
+	private sessionContexts: Array<Context>;
 	private _parentPath: string;
 	private _projectPath: string;
 	private userIDs: UserIDs
@@ -62,8 +62,9 @@ export class SessionController {
 		const sessionId = session
 			? session.sessionId ? session.sessionId
 			: uuidv4() : uuidv4();
-		this._Contexts = session ? session.outputContexts : []
+		this.sessionContexts = session ? session.outputContexts : []
 		console.log( "\x1b[35m%s\x1b[33m", "Session:", sessionId )
+		console.log( "\x1b[35m%s\x1b[33m", "Contextos:", this.sessionContexts )
 		console.log( "\x1b[35m%s\x1b[33m", "ProjectId:", projectId )
 		
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
@@ -79,7 +80,7 @@ export class SessionController {
 				},
 			},
 			queryParams: {
-				contexts: this._Contexts
+				contexts: this.sessionContexts
 			}
 		};
 
@@ -90,7 +91,7 @@ export class SessionController {
 		if ( response.queryResult.intent ) {
 			const intent = response.queryResult.intent
 			console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName );
-			// console.log("\x1b[35m%s\x1b[33m", "Response outputContexts:", response.queryResult.outputContexts );
+			// console.log("\x1b[35m%s\x1b[33m", "Query OutputContexts:", response.queryResult.outputContexts );
 			// console.log("\x1b[35m%s\x1b[33m", "Response Parameters:", response.queryResult.parameters.fields);
 
 
@@ -123,7 +124,7 @@ export class SessionController {
 					await this.ManageResponsesController(
 						responsesGetted, sessionResult, clientId
 					)
-					// console.log( "\x1b[34m", "output Contexts", outputContexts.length )
+					console.log( "\x1b[34m", "output Contexts setted", outputContexts )
 	
 				
 				//STUB SAVE OR DELETE SESSION
@@ -165,7 +166,7 @@ export class SessionController {
 
 		const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
 
-		console.log( pathToCollection )
+		// console.log( pathToCollection )
 		const intentRef = firestore.collection(pathToCollection).orderBy("index", "asc");
 		const respuestas: any[] = [];
 
@@ -193,38 +194,42 @@ export class SessionController {
 		console.log('params to evaluate', parametersToEvaluate);
 		// console.log( 'array of awnsers', arrayOfAnswer )
 		// const parameterArray = queryResult.parameters;
-		// this._currentQueryResult.parameters.forEach( function(obj) {
+		
 
-		for (const element of arrayOfAnswer) {
-			const validateResponse: iResponseValidate = { 
-				result: element.result,
-				outputContexts: element.outputContexts,
-				parameters: parametersToEvaluate
-			}
-			
-			element.result.text = this._replaceParameters(parametersToEvaluate, element.result.text);
-			// console.log( 'tipo:', element.tipo )
-			switch (element.tipo) {
-				case "grupo_datos":
-					promisesToHandle.push(
-						this._validateDataGroup(validateResponse)
-					);
-					break;
-				case "buscar":
-					promisesToHandle.push(
-						this._validateSearch( validateResponse, clientId)
-					);
-					break;
-				case "condicional":
-					promisesToHandle.push(
-						this._validateConditional(validateResponse)
-					);
-					break;
-				case "simple":
-					promisesToHandle.push(this._validateSimple(validateResponse));
-					break;
-				default:
-					throw new Error("Esa respuesta no la pude procesar");
+		for (const answer of arrayOfAnswer) {
+			console.log( '\x1b[33m', 'Answer inputContexts', answer.inputContexts )
+			console.log( 'Is answer of session?', this.isContextAwnser(answer.inputContexts) )			
+			if (this.isContextAwnser(answer.inputContexts)) {
+				const validateResponse: iResponseValidate = { 
+					result: answer.result,
+					outputContexts: answer.outputContexts,
+					parameters: parametersToEvaluate,
+				}
+				
+				answer.result.text = this._replaceParameters(parametersToEvaluate, answer.result.text);
+				// console.log( 'tipo:', element.tipo )
+				switch (answer.tipo) {
+					case "grupo_datos":
+						promisesToHandle.push(
+							this._validateDataGroup(validateResponse)
+						);
+						break;
+					case "buscar":
+						promisesToHandle.push(
+							this._validateSearch( validateResponse, clientId)
+						);
+						break;
+					case "condicional":
+						promisesToHandle.push(
+							this._validateConditional(validateResponse)
+						);
+						break;
+					case "simple":
+						promisesToHandle.push(this._validateSimple(validateResponse));
+						break;
+					default:
+						throw new Error("Esa respuesta no la pude procesar");
+				}
 			}
 		}
 
@@ -250,20 +255,24 @@ export class SessionController {
 				if (currentResponse
 					&& currentResponse.outputContexts
 					&& currentResponse.outputContexts.length > 0) {
-					// console.log("\x1b[36m", "current contextos", currentResponse.outputContexts)
+					console.log("\x1b[36m", "current contextos", currentResponse.outputContexts)
 
 					await this.asyncForEach(currentResponse.outputContexts,
-					async (context:string) => {
-						if (
-							!outputContexts.find(x => x === context)
-							&& context !== ""
-						) {
-							const contextAdded = await this._createContext(context);
+						async (context: string) => {
+							
+							if (
+								!outputContexts.find(
+									c => c.name.slice(
+										c.name.lastIndexOf('/') + 1
+									) === context
+								)
+								&& context !== ""
+							) {
+								const contextAdded: Context = await this._createContext(context);
 
-							// console.log( context )
-							outputContexts.push(contextAdded);
-							// console.log( outputContexts )
-						}
+								outputContexts.push(contextAdded);
+								// console.log( contextAdded, "\x1b[36m", 'added to', outputContexts )
+							}
 					})
 				}
 				
@@ -272,13 +281,13 @@ export class SessionController {
 					const sugContexts: string[] = currentResponse.suggestions
 						.map(s => s.context ? s.context : null)
 					
-					// console.log( "\x1b[31m", "suggests contexts",  sugContexts)
+					console.log( "\x1b[31m", "suggests contexts",  sugContexts)
 					await this.asyncForEach(sugContexts,async (c:string) => {
 						if ( !outputContexts.find(x => x === c) && c !== "" ) {
 							const contextAdded = await this._createContext(c);
 
-							// console.log( context )
 							outputContexts.push(contextAdded);
+							// console.log( contextAdded, "\x1b[36m", 'added to', outputContexts )
 							// console.log( outputContexts )
 						}
 					})
@@ -295,7 +304,7 @@ export class SessionController {
 			
 		
 		
-		// console.log( "\x1b[31m%s\x1b[30", "output contexts", outputContexts )
+		console.log( "\x1b[31m%s\x1b[30", "output contexts about reponses", outputContexts )
 		return {answers, outputContexts}
 		// const responsesReturned = await this._controllerResponse();
 		// return responsesReturned;
@@ -303,8 +312,8 @@ export class SessionController {
 	
 	// ANCHOR SEARCH
 	private _validateSearch = async (
-		{result, outputContexts, parameters}: iResponseValidate,
-		clientId: string
+	{result, outputContexts, parameters}: iResponseValidate,
+	clientId: string
 	): Promise<ApiMessagesSucceeded | null> => {
 		// **************************************** //
 		const searchResult = result as SearchOutput;
@@ -313,7 +322,7 @@ export class SessionController {
 		// console.log();
 
 		if (searchResult.database && value) {
-			console.log("response with search");
+			// console.log("response with search");
 			const pathToCollection = `/usuarios/${clientId}/${searchResult.database}`;
 
 			
@@ -329,6 +338,7 @@ export class SessionController {
 
 			console.log( "\x1b[33m", 'Response with search' )
 			console.log(  "\x1b[33m", searchResult.text )
+			console.log(  "\x1b[36m", 'Set context by search', outputContexts )
 			return {
 				text: searchResult.text,
 				cards: data,
@@ -346,6 +356,7 @@ export class SessionController {
 		let resolve = false;
 		const param = conditional.parametro.split("$")[1].split(".")[0];
 		const value = parameters.get(param);
+		console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
 		// console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
 		// 	value,
 		// 	condition: conditional.condicion,
@@ -384,7 +395,8 @@ export class SessionController {
 		
 		if (resolve) {
 			console.log( "\x1b[36m", "Response with condition" );
-			console.log( "\x1b[33m",  conditional.text )
+			console.log("\x1b[33m", conditional.text)
+			console.log(  "\x1b[36m", 'Set context by conditional', outputContexts )
 			return { ...conditional, outputContexts: outputContexts };
 		}
 		return null;
@@ -400,6 +412,7 @@ export class SessionController {
 		this._sessionParams[dataParty.parametro] = value
 		this.data[dataParty.parametro] = value
 
+		console.log( this._projectPath  )
 		const clientsColPath = `${ this._projectPath }/clientes`
 		const clientsRef = firestore.collection(clientsColPath)
 		if ( !this.userIDs.userId ) {
@@ -416,7 +429,8 @@ export class SessionController {
 		if (value) {
 			console.log("\x1b[32m","response with datagroup", value);
 			await this._createContext( 'data', parameters, 50 );
-			console.log( "\x1b[33m", result.text )
+			console.log("\x1b[33m", result.text)
+			console.log(  "\x1b[36m", 'Set context by dataGroup', outputContexts )
 			return { ...result, outputContexts: outputContexts };
 		}
 		return null;
@@ -431,7 +445,8 @@ export class SessionController {
 
 		if ( typeof result !== undefined ) {
 			console.log( "\x1b[34m", 'Response with simple' )
-			console.log( "\x1b[33m",  result.text )
+			console.log("\x1b[33m", result.text)
+			console.log(  "\x1b[36m", 'Set context by simple', outputContexts )
 			return { ...result, outputContexts };
 		}
 		return null;
@@ -462,6 +477,17 @@ export class SessionController {
 		});
 	}
 
+	// ANCHOR Validate in Input Contexts
+	isContextAwnser(responseInputContexts: string[]) {
+		return (!responseInputContexts
+			|| responseInputContexts.length === 0
+			|| responseInputContexts
+			.every(c => this.sessionContexts.find(
+			ic => this.trimNames(ic.name) === c)
+			)
+		)
+	}
+
 	// !SECTION
 
 
@@ -471,7 +497,7 @@ export class SessionController {
 		let sessionRef = firestore.doc(this.sessionPath)
 		if ((await sessionRef.get()).exists) {
 			const contexts = await (await sessionRef.get()).get('outputContexts')
-			console.log('borrar',  contexts.filter((c:any) => this.trimNames(c.name)) )
+			console.log('borrar',  contexts.map((c:any) => this.trimNames(c.name)) )
 			await sessionRef.update( {
 				sessionId: firebase.firestore.FieldValue.delete(),
 				outputContexts: firebase.firestore.FieldValue.delete()
@@ -491,6 +517,7 @@ export class SessionController {
 	private async _saveSession(sessionBody: SessionBody) {
 		const clientsColPath = `${ this._projectPath }/clientes`
 		const clientsRef = firestore.collection(clientsColPath)
+		console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
 		const session = {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
@@ -508,7 +535,7 @@ export class SessionController {
 			time: new Date()
 		}
 
-		console.log( this.userIDs )
+		// console.log( this.userIDs )
 
 		if ( !this.userIDs.userId ) {
 			clientsRef.add(session ).then( c => {
@@ -542,6 +569,7 @@ export class SessionController {
 					? userDoc.data()[ 'sessionId' ] : null
 				const outputContexts = userDoc.data()[ 'outputContexts' ]
 					? userDoc.data()['outputContexts'] : null
+				// console.log(  "\x1b[36m", 'contexts finded in session', outputContexts )
 				return {sessionId, outputContexts}
 			 } else { return null }
 			
@@ -560,12 +588,13 @@ export class SessionController {
 				this.userIDs.userId = userFinded.docs[ 0 ].id	
 				this.userIDs[platform] = userFinded.docs[0].data()[platform]
 				this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
-				console.log( this.sessionPath )
+				// console.log( this.sessionPath )
 				let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
 					? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
 				let outputContexts = userFinded.docs[ 0 ].data()[ 'outputContexts' ]
 					? userFinded.docs[ 0 ].data()[ 'outputContexts' ] : null
-				return {sessionId, outputContexts}
+				console.log(  "\x1b[36m", 'contexts finded in session', outputContexts )
+				return { sessionId, outputContexts }
 			} else {
 				clientsRef.add( this.userIDs )
 					.then( doc => {
@@ -589,16 +618,19 @@ export class SessionController {
 	private _saveSessionParams(
 		sessionContexts: google.cloud.dialogflow.v2.IContext[]
 	) {
+		console.log( '529 on Save Session Params', sessionContexts.map(c => c.parameters.fields) )
 		sessionContexts.forEach(c => {
-			const fields = c.parameters.fields
-			Object.keys(fields).forEach(fieldName => {
-				// console.log( fieldName )
-				const valueName = Object.keys(fields[fieldName])[0] as ParamType
-				const value = fields[fieldName][valueName]
-				if (!this._sessionParams[fieldName] && value ) {
-					this._sessionParams[fieldName] = value
-				}
-			})
+			if (c.parameters) {
+				const fields = c.parameters.fields
+				Object.keys(fields).forEach(fieldName => {
+					// console.log( fieldName )
+					const valueName = Object.keys(fields[fieldName])[0] as ParamType
+					const value = fields[fieldName][valueName]
+					if (!this._sessionParams[fieldName] && value ) {
+						this._sessionParams[fieldName] = value
+					}
+				})
+			}
 			
 		})
 		console.log("\x1b[35m%s\x1b[33m", "Parameters", this._sessionParams)
@@ -765,6 +797,7 @@ export class SessionController {
 			
 			const { projectId, textInput, clientId } = req.body;
 			
+			console.log(  "\x1b[36m", 'inputContext getted', req.body.inputContexts )
 			const body: ClientRequest = {
 				projectId, textInput, clientId,
 				sessionId: req.body.sessionId ? req.body.sessionId : null,
