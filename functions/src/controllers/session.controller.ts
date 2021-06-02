@@ -124,7 +124,7 @@ export class SessionController {
 					await this.ManageResponsesController(
 						responsesGetted, sessionResult, clientId
 					)
-					console.log( "\x1b[34m", "output Contexts setted", outputContexts )
+					// console.log( "\x1b[34m", "output Contexts setted", outputContexts )
 	
 				
 				//STUB SAVE OR DELETE SESSION
@@ -241,7 +241,8 @@ export class SessionController {
 			} );
 		
 		// console.log("\x1b[35m", 'answers', answers)
-		answers = answers.filter( a => a )
+		
+		answers = answers.filter( a => a ) // clear of undefined answers
 		if (answers.length > 1) {
 			answers = answers.filter( a => !a.asDefault)
 		}
@@ -276,7 +277,7 @@ export class SessionController {
 					})
 				}
 				
-				if (currentResponse
+				if (currentResponse && currentResponse.suggestions
 					&& currentResponse.suggestions.length > 0) { 
 					const sugContexts: string[] = currentResponse.suggestions
 						.map(s => s.context ? s.context : null)
@@ -304,7 +305,7 @@ export class SessionController {
 			
 		
 		
-		console.log( "\x1b[31m%s\x1b[30", "output contexts about reponses", outputContexts )
+		// console.log( "\x1b[31m%s\x1b[30", "output contexts about reponses", outputContexts )
 		return {answers, outputContexts}
 		// const responsesReturned = await this._controllerResponse();
 		// return responsesReturned;
@@ -320,6 +321,7 @@ export class SessionController {
 		const value = parameters.get(searchResult.parametro);
 		// console.log("\x1b[33m%s\x1b[37m%s", "search criteria", { database: responseToValidate.database, value });
 		// console.log();
+		console.log( searchResult, value )
 
 		if (searchResult.database && value) {
 			// console.log("response with search");
@@ -328,11 +330,13 @@ export class SessionController {
 			
 			const databaseRef = await firestore
 				.collection(pathToCollection)
-				.where("name", "==", searchResult.parametro)
+				.where("id", "==",value)
 				.get();
 			const data = [];
 
+			console.log( databaseRef.size )
 			for (const document of databaseRef.docs) {
+				console.log( document.data() )
 				data.push((<any>document.data()) as Card);
 			}
 
@@ -354,7 +358,12 @@ export class SessionController {
 	): Promise<ApiMessagesSucceeded | null> => {
 		const conditional = result as ConditionalOutput
 		let resolve = false;
-		const param = conditional.parametro.split("$")[1].split(".")[0];
+		console.log( conditional.parametro )
+		const param = conditional.parametro
+			? conditional.parametro.startsWith('$')
+				? conditional.parametro.split("$")[1].split(".")[0]
+				: conditional.parametro.split('.')[0]
+			: ''
 		const value = parameters.get(param);
 		console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
 		// console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
@@ -517,7 +526,7 @@ export class SessionController {
 	private async _saveSession(sessionBody: SessionBody) {
 		const clientsColPath = `${ this._projectPath }/clientes`
 		const clientsRef = firestore.collection(clientsColPath)
-		console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
+		// console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
 		const session = {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
