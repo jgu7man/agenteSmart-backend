@@ -60,10 +60,10 @@ export type Result =
     | ContionalOutput;
     
 type TypeOfAnswer =
-    | 'buscar'
-    | 'simple'
-    | 'condicional'
-    | 'grupo_datos';
+    | 'search'
+    | 'default'
+    | 'conditional'
+    | 'catch';
   
   export interface ResponseFromFirebase{
     id: string;

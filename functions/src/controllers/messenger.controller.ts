@@ -83,11 +83,11 @@ export default class MessengerWebhook {
                     
                     if ( active ) {
                         
-                        const clientId: string = docPath.split( '/' )[ 1 ]
+                        const userId: string = docPath.split( '/' )[ 1 ]
                         const detectIntent: ClientRequest = {
-                            projectId, clientId,
+                            projectId, userId,
                             textInput: message.text,
-                            userIDs: { messengerId: senderId }
+                            clientIDs: { messengerId: senderId }
                         }
                         
                         // Get the coversation doc and update in firestore

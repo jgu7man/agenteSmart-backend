@@ -27,7 +27,7 @@ import {
 	ClientRequest,
 	IntentResponse,
 	SessionBody,
-	UserIDs
+	ClientIDs
 } from "../interfaces/conversation.interface";
 import { google } from "@google-cloud/dialogflow/build/protos/protos";
 
@@ -38,8 +38,9 @@ export class SessionController {
 	
 	private sessionContexts: Array<Context>;
 	private _parentPath: string;
+	private _accountPath: string;
 	private _projectPath: string;
-	private userIDs: UserIDs
+	private clientIDs: ClientIDs
 	private sessionPath: string;
 	private _sessionParams: { [key: string]: any } = {}
 	private data: { [key: string]:any } = {}
@@ -51,18 +52,22 @@ export class SessionController {
 		// console.log("\n\n",  body )
 		
 		//STUB GET CLIENT DATA
-		const {clientId, projectId, textInput, userIDs } = body;
-		this.userIDs = userIDs 
-		this._projectPath = `/usuarios/${ clientId }/agentes/${ projectId }`;
-			
+		const { userId, projectId, textInput, clientIDs } = body;
+		this.clientIDs = clientIDs
+		this._accountPath = `usuarios/${ userId }`
+		this._projectPath = `/usuarios/${ userId }/agentes/${ projectId }`;
+
+		
 
 		//STUB GET SESSION DATA
-		let session = await this.searchForSessionId(userIDs)
-		if (!session) console.log(  "\x1b[35m", 'Sesión nueva' )
+		let session = await this.searchForSessionId(clientIDs)
+		if ( !session ) console.log( "\x1b[35m", 'Sesión nueva' )
+		
 		const sessionId = session
 			? session.sessionId ? session.sessionId
 			: uuidv4() : uuidv4();
 		this.sessionContexts = session ? session.outputContexts : []
+		console.log( "\x1b[35m%s\x1b[33m", "UserId:", userId )
 		console.log( "\x1b[35m%s\x1b[33m", "Session:", sessionId )
 		console.log( "\x1b[35m%s\x1b[33m", "Contextos:", this.sessionContexts )
 		console.log( "\x1b[35m%s\x1b[33m", "ProjectId:", projectId )
@@ -102,17 +107,17 @@ export class SessionController {
 			//STUB SET SESSION RESULT
 			const sessionResult = <QueryResult> {
 				...response.queryResult,
-				clientId,sessionId,projectId,
+				clientId: userId,sessionId,projectId,
 			};
 	
 			//STUB GET RESPONSES FROM FIRESTORE
 			const responsesGetted = await
 				this.retriveMessagesFromFireStore(
-					clientId,
+					userId,
 					projectId,
 					sessionResult.intent.name
 				);
-				// console.log({getRespuestas})
+				// console.log('Respuestas obtenidas', responsesGetted)
 	
 			
 			
@@ -122,7 +127,7 @@ export class SessionController {
 				// GET ANSWERS AND OUTPUT CONTEXTS
 				const { answers, outputContexts } =
 					await this.ManageResponsesController(
-						responsesGetted, sessionResult, clientId
+						responsesGetted, sessionResult, userId
 					)
 					// console.log( "\x1b[34m", "output Contexts setted", outputContexts )
 	
@@ -157,14 +162,14 @@ export class SessionController {
 	// SECTION RESPONSES
 	// ANCHOR FIND RESPUESTAS FIRESTORE
 	private async retriveMessagesFromFireStore(
-		clientId: string,
+		userId: string,
 		idProject: string,
 		intentName: string
 	): Promise<Array<ResponseFromFirebase | null>> {
 		// /usuarios/{idUser}/agentes/{idProject}/mensajes/{intentName}/respuestas
 		const idName = this.trimNames(intentName)
 
-		const pathToCollection = `/usuarios/${clientId}/agentes/${idProject}/mensajes/${idName}/respuestas`;
+		const pathToCollection = `/usuarios/${userId}/agentes/${idProject}/intents/${idName}/responses`;
 
 		// console.log( pathToCollection )
 		const intentRef = firestore.collection(pathToCollection).orderBy("index", "asc");
@@ -209,22 +214,22 @@ export class SessionController {
 				answer.result.text = this._replaceParameters(parametersToEvaluate, answer.result.text);
 				// console.log( 'tipo:', element.tipo )
 				switch (answer.tipo) {
-					case "grupo_datos":
+					case "catch":
 						promisesToHandle.push(
 							this._validateDataGroup(validateResponse)
 						);
 						break;
-					case "buscar":
+					case "search":
 						promisesToHandle.push(
 							this._validateSearch( validateResponse, clientId)
 						);
 						break;
-					case "condicional":
+					case "conditional":
 						promisesToHandle.push(
 							this._validateConditional(validateResponse)
 						);
 						break;
-					case "simple":
+					case "default":
 						promisesToHandle.push(this._validateSimple(validateResponse));
 						break;
 					default:
@@ -314,7 +319,7 @@ export class SessionController {
 	// ANCHOR SEARCH
 	private _validateSearch = async (
 	{result, outputContexts, parameters}: iResponseValidate,
-	clientId: string
+	userId: string
 	): Promise<ApiMessagesSucceeded | null> => {
 		// **************************************** //
 		const searchResult = result as SearchOutput;
@@ -325,7 +330,7 @@ export class SessionController {
 
 		if (searchResult.database && value) {
 			// console.log("response with search");
-			const pathToCollection = `/usuarios/${clientId}/${searchResult.database}`;
+			const pathToCollection = `/usuarios/${userId}/${searchResult.database}`;
 
 			
 			const databaseRef = await firestore
@@ -422,14 +427,14 @@ export class SessionController {
 		this.data[dataParty.parametro] = value
 
 		console.log( this._projectPath  )
-		const clientsColPath = `${ this._projectPath }/clientes`
+		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection(clientsColPath)
-		if ( !this.userIDs.userId ) {
+		if ( !this.clientIDs.clientId ) {
 			clientsRef.add({data:this.data, lastUpdate: new Date()}).then( c => {
-				this.userIDs.userId = c.id
+				this.clientIDs.clientId = c.id
 			})
 		} else {
-			const clientRef = clientsRef.doc( this.userIDs.userId )
+			const clientRef = clientsRef.doc( this.clientIDs.clientId )
 			clientRef.set({data:this.data, lastUpdate: new Date()}, {merge: true} )
 			// }
 		}
@@ -524,8 +529,10 @@ export class SessionController {
 
 	// ANCHOR SAVE SESSION
 	private async _saveSession(sessionBody: SessionBody) {
-		const clientsColPath = `${ this._projectPath }/clientes`
+		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection(clientsColPath)
+		const interactionsPath = `${ this._projectPath }/interactions`
+		const interactionsRef = firestore.collection(interactionsPath)
 		// console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
 		const session = {
 			sessionId: sessionBody.sessionId,
@@ -544,21 +551,23 @@ export class SessionController {
 			time: new Date()
 		}
 
-		// console.log( this.userIDs )
+		// Add on agent interactions for analytics
+		interactionsRef.add(conversation)
 
-		if ( !this.userIDs.userId ) {
-			clientsRef.add(session ).then( c => {
-				c.collection('conversacion').add(conversation)
-			})
+		if ( !this.clientIDs.clientId ) {
+			clientsRef.add( session ).then( c => {
+				c.update({clientId: c.id})
+				c.collection('conversation').add(conversation)
+			} )
 		} else {
-			const clientRef = clientsRef.doc( this.userIDs.userId )
+			const clientRef = clientsRef.doc( this.clientIDs.clientId )
 			// const clientDoc = await clientRef.get()
 			// if ( clientDoc.exists ) {
 			// 	clientRef.update(session)
 			// } else {
-				clientsRef.doc(this.userIDs.userId).set( session, {merge: true} )
+				clientsRef.doc(this.clientIDs.clientId).set( session, {merge: true} )
 			// }
-			clientRef.collection( 'conversacion' ).add( conversation )
+			clientRef.collection( 'conversation' ).add( conversation )
 		}
 		// let clientPath = this._currentUser ?  `${clientsColPath}/${this._currentUser}`
 		
@@ -566,12 +575,12 @@ export class SessionController {
 	}
 
 	// ANCHOR Search for session by user IDs
-	public async searchForSessionId( userIDs: UserIDs ): Promise<any> {
-		const clientsColPath = `${ this._projectPath }/clientes`
+	public async searchForSessionId( userIDs: ClientIDs ): Promise<any> {
+		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection( clientsColPath )
-		if ( userIDs.userId ) {
-			this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
-			const userDoc = await clientsRef.doc( userIDs.userId ).get()
+		if ( userIDs.clientId ) {
+			this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
+			const userDoc = await clientsRef.doc( userIDs.clientId ).get()
 			if (userDoc.exists) {
 				// console.log( 'user exists' )
 				const sessionId = userDoc.data()[ 'sessionId' ]
@@ -594,9 +603,9 @@ export class SessionController {
 			
 			if ( !userFinded.empty ) {
 				
-				this.userIDs.userId = userFinded.docs[ 0 ].id	
-				this.userIDs[platform] = userFinded.docs[0].data()[platform]
-				this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
+				this.clientIDs.clientId = userFinded.docs[ 0 ].id	
+				this.clientIDs[platform] = userFinded.docs[0].data()[platform]
+				this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
 				// console.log( this.sessionPath )
 				let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
 					? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
@@ -605,11 +614,11 @@ export class SessionController {
 				console.log(  "\x1b[36m", 'contexts finded in session', outputContexts )
 				return { sessionId, outputContexts }
 			} else {
-				clientsRef.add( this.userIDs )
+				clientsRef.add( this.clientIDs )
 					.then( doc => {
-						this.userIDs.userId = doc.id
+						this.clientIDs.clientId = doc.id
 						clientsRef.doc(doc.id).update({ userId: doc.id })
-						this.sessionPath = `${ clientsColPath }/${ this.userIDs.userId }`
+						this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
 					} )
 				return null
 			}
@@ -808,10 +817,10 @@ export class SessionController {
 			
 			console.log(  "\x1b[36m", 'inputContext getted', req.body.inputContexts )
 			const body: ClientRequest = {
-				projectId, textInput, clientId,
+				projectId, textInput, userId: clientId,
 				sessionId: req.body.sessionId ? req.body.sessionId : null,
 				inputContexts: req.body.inputContexts ? req.body.inputContexts : null,
-				userIDs: req.body.userIDs
+				clientIDs: req.body.userIDs
 			}
 			
 			const response = await this.detectIntent(body)

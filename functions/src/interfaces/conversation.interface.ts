@@ -3,10 +3,10 @@ import { ApiMessagesSucceeded } from "./session.interface";
 export interface ClientRequest {
     projectId: string,
     textInput:string,
-    clientId: string,
+    userId: string,
     sessionId?: string,
     inputContexts?: any[],
-    userIDs?: UserIDs
+    clientIDs?: ClientIDs
 }
 
 export interface SessionBody {
@@ -18,8 +18,8 @@ export interface SessionBody {
     outputContexts?: any[]
 }
 
-export interface UserIDs {
-    userId?: string,
+export interface ClientIDs {
+    clientId?: string,
     messengerId?: string,
     whatsappId?:string
 }
