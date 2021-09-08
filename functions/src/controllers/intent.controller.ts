@@ -13,10 +13,8 @@ export default class IntentController {
 		const { intent, projectId } = req.body as { projectId: string; intent: Partial<IIntent> };
 		//set webHook if its not provided:
 		console.log(intent);
-		intent.webHookState =
-			intent.webHookState !== "WEBHOOK_STATE_ENABLED_FOR_SLOT_FILLING"
-				? "WEBHOOK_STATE_ENABLED_FOR_SLOT_FILLING"
-				: intent.webHookState;
+		intent.webHookState = intent.webHookState ||
+			"WEBHOOK_STATE_ENABLED_FOR_SLOT_FILLING"
 
 		// let { name, displayName, webHookState, trainingPhrases, action, parameters } = req.body.intent;
 		const client = new IntentsClient({ credentials: keyFilename });
@@ -56,6 +54,7 @@ export default class IntentController {
 		intent.trainingPhrases = <Array<ITrainingPhrase | null>>trainingPhrases;
 		intent.parameters = parameters;
 
+		console.log( intent )
 		// console.log(intent.trainingPhrases);
 		this.updatedIntent(intent)
 			.then(result => {

@@ -27,7 +27,9 @@ import {
 	ClientRequest,
 	IntentResponse,
 	SessionBody,
-	ClientIDs
+	ClientIDs,
+	iCurrentSession,
+	iInteraction
 } from "../interfaces/conversation.interface";
 import { google } from "@google-cloud/dialogflow/build/protos/protos";
 
@@ -49,10 +51,10 @@ export class SessionController {
 	
 	// SECTION DETECT INTENT (ROOT)
 	public detectIntent = async ( body: ClientRequest ): Promise<IntentResponse> => {
-		// console.log("\n\n",  body )
 		
 		//STUB GET CLIENT DATA
 		const { userId, projectId, textInput, clientIDs } = body;
+		
 		this.clientIDs = clientIDs
 		this._accountPath = `usuarios/${ userId }`
 		this._projectPath = `/usuarios/${ userId }/agentes/${ projectId }`;
@@ -202,8 +204,8 @@ export class SessionController {
 		
 
 		for (const answer of arrayOfAnswer) {
-			console.log( '\x1b[33m', 'Answer inputContexts', answer.inputContexts )
-			console.log( 'Is answer of session?', this.isContextAwnser(answer.inputContexts) )			
+			// console.log( '\x1b[33m', 'Answer inputContexts', answer.inputContexts )
+			// console.log( 'Is answer of session?', this.isContextAwnser(answer.inputContexts) )			
 			if (this.isContextAwnser(answer.inputContexts)) {
 				const validateResponse: iResponseValidate = { 
 					result: answer.result,
@@ -212,7 +214,7 @@ export class SessionController {
 				}
 				
 				answer.result.text = this._replaceParameters(parametersToEvaluate, answer.result.text);
-				// console.log( 'tipo:', element.tipo )
+				console.log( 'tipo:', answer.tipo )
 				switch (answer.tipo) {
 					case "catch":
 						promisesToHandle.push(
@@ -363,20 +365,20 @@ export class SessionController {
 	): Promise<ApiMessagesSucceeded | null> => {
 		const conditional = result as ConditionalOutput
 		let resolve = false;
-		console.log( conditional.parametro )
+		// console.log( 'param', conditional.parametro )
 		const param = conditional.parametro
 			? conditional.parametro.startsWith('$')
 				? conditional.parametro.split("$")[1].split(".")[0]
 				: conditional.parametro.split('.')[0]
 			: ''
-		const value = parameters.get(param);
-		console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
-		// console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
-		// 	value,
-		// 	condition: conditional.condicion,
-		// 	criterio: conditional.valor,
-		// 	param: param,
-		// });
+		const value = parameters.get(conditional.valor);
+		// console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
+		console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
+			value,
+			condition: conditional.condicion,
+			criterio: conditional.valor,
+			param: param,
+		});
 
 		if (conditional.condicion === "no existe" && !value) {
 			resolve = true;
@@ -508,13 +510,14 @@ export class SessionController {
 	// SECTION SESSION
 	// ANCHOR DELETE SESSION 
 	private async _deleteSession() {
-		let sessionRef = firestore.doc(this.sessionPath)
-		if ((await sessionRef.get()).exists) {
-			const contexts = await (await sessionRef.get()).get('outputContexts')
+		const sessionRef = firestore.doc( this.sessionPath )
+		const sessionDoc = await sessionRef.get()
+
+		if (sessionDoc.exists) {
+			const contexts = sessionDoc.get('session.outputContexts')
 			console.log('borrar',  contexts.map((c:any) => this.trimNames(c.name)) )
 			await sessionRef.update( {
-				sessionId: firebase.firestore.FieldValue.delete(),
-				outputContexts: firebase.firestore.FieldValue.delete()
+				session: firebase.firestore.FieldValue.delete()
 			})
 		}
 		return
@@ -534,16 +537,16 @@ export class SessionController {
 		const interactionsPath = `${ this._projectPath }/interactions`
 		const interactionsRef = firestore.collection(interactionsPath)
 		// console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
-		const session = {
+		const session: iCurrentSession = {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
 			lastUpdate: new Date(),
 			sessionParams: this._sessionParams,
 		} 
 		const respuestas = sessionBody.answers.map( a => a.text )
-		const conversation = {
-			usuario: sessionBody.textInput, 
-			agente: respuestas,
+		const interactions: iInteraction = {
+			client: sessionBody.textInput, 
+			agent: respuestas,
 			intent: {
 				intentId: sessionBody.intentId,
 				intentName: sessionBody.intentName
@@ -552,43 +555,37 @@ export class SessionController {
 		}
 
 		// Add on agent interactions for analytics
-		interactionsRef.add(conversation)
+		interactionsRef.add(interactions)
 
 		if ( !this.clientIDs.clientId ) {
-			clientsRef.add( session ).then( c => {
+			clientsRef.add( {session} ).then( c => {
 				c.update({clientId: c.id})
-				c.collection('conversation').add(conversation)
+				c.collection('conversation').add(interactions)
 			} )
 		} else {
 			const clientRef = clientsRef.doc( this.clientIDs.clientId )
-			// const clientDoc = await clientRef.get()
-			// if ( clientDoc.exists ) {
-			// 	clientRef.update(session)
-			// } else {
-				clientsRef.doc(this.clientIDs.clientId).set( session, {merge: true} )
-			// }
-			clientRef.collection( 'conversation' ).add( conversation )
+			clientRef.set( {session}, { merge: true } ).then( c => {
+				clientRef.collection( 'conversation' ).add( interactions )
+			})
 		}
-		// let clientPath = this._currentUser ?  `${clientsColPath}/${this._currentUser}`
-		
-					
 	}
 
 	// ANCHOR Search for session by user IDs
 	public async searchForSessionId( userIDs: ClientIDs ): Promise<any> {
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection( clientsColPath )
+		// console.log( userIDs )
+
 		if ( userIDs.clientId ) {
 			this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
 			const userDoc = await clientsRef.doc( userIDs.clientId ).get()
-			if (userDoc.exists) {
-				// console.log( 'user exists' )
-				const sessionId = userDoc.data()[ 'sessionId' ]
-					? userDoc.data()[ 'sessionId' ] : null
-				const outputContexts = userDoc.data()[ 'outputContexts' ]
-					? userDoc.data()['outputContexts'] : null
-				// console.log(  "\x1b[36m", 'contexts finded in session', outputContexts )
-				return {sessionId, outputContexts}
+			
+			if ( userDoc.exists ) {
+				console.log( 'user exists' )
+				const session = userDoc.data()[ 'session' ] as iCurrentSession
+				
+				// console.log(  "\x1b[36m", 'Session result:', session || null )
+				return session || null
 			 } else { return null }
 			
 		} else if ( userIDs.messengerId || userIDs.whatsappId ) {
@@ -636,7 +633,7 @@ export class SessionController {
 	private _saveSessionParams(
 		sessionContexts: google.cloud.dialogflow.v2.IContext[]
 	) {
-		console.log( '529 on Save Session Params', sessionContexts.map(c => c.parameters.fields) )
+		// console.log( '529 on Save Session Params', sessionContexts.map(c => c.parameters.fields) )
 		sessionContexts.forEach(c => {
 			if (c.parameters) {
 				const fields = c.parameters.fields
