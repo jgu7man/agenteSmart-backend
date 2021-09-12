@@ -8,7 +8,7 @@
     "serve": "tsc && firebase serve",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
-    "deploy": "tsc && firebase deploy --only functions",
+    "deploy": "tsc && firebase deploy --only functions,hosting",
     "logs": "firebase functions:log",
     "debug": "nodemon -e ts --exec \"npm run serve\"",
     "test:ip": "tsc && firebase serve -o 192.168.1.65",

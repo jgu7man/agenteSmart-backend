@@ -7,9 +7,10 @@ export interface ConversationItem {
 	message: Message;
 }
 
-export interface MessengerResponse {
+export interface iInteractionResult {
 	page_access_token: string;
 	intent_response: IntentResponse;
+	active: boolean;
 }
 
 export interface QuickReply {

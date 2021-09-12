@@ -48,6 +48,7 @@ export interface ConversationSession {
 }
 
 export interface IntentResponse {
-    message: string;
+    state: string;
     respuestas?: ApiMessagesSucceeded[];
+    session: SessionBody
 }

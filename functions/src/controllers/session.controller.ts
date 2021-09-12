@@ -77,6 +77,8 @@ export class SessionController {
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
+		
+		
 		//STUB SET REQUEST BODY
 		const request = {
 			session: this._parentPath,
@@ -91,27 +93,37 @@ export class SessionController {
 			}
 		};
 
+
+
 		//STUB DETECT INTENT
 		const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
 		
+
+
 		//STUB CURATE INTENT DETECTED
 		if ( response.queryResult.intent ) {
 			const intent = response.queryResult.intent
-			console.log("\x1b[35m%s\x1b[33m", "Intent", response.queryResult.intent.displayName );
+			console.log("\x1b[35m%s\x1b[33m", "Intent", intent.displayName );
 			// console.log("\x1b[35m%s\x1b[33m", "Query OutputContexts:", response.queryResult.outputContexts );
 			// console.log("\x1b[35m%s\x1b[33m", "Response Parameters:", response.queryResult.parameters.fields);
+
 
 
 			//STUB STRUCTURE CONTEXT PARAMS 
 			this._saveSessionParams(response.queryResult.outputContexts)
 
 			
+
 			//STUB SET SESSION RESULT
 			const sessionResult = <QueryResult> {
 				...response.queryResult,
-				clientId: userId,sessionId,projectId,
+				userId,
+				sessionId,
+				projectId,
 			};
 	
+
+
 			//STUB GET RESPONSES FROM FIRESTORE
 			const responsesGetted = await
 				this.retriveMessagesFromFireStore(
@@ -127,31 +139,38 @@ export class SessionController {
 			if (responsesGetted) {
 				
 				// GET ANSWERS AND OUTPUT CONTEXTS
-				const { answers, outputContexts } =
+				let { answers, outputContexts } =
 					await this.ManageResponsesController(
 						responsesGetted, sessionResult, userId
 					)
 					// console.log( "\x1b[34m", "output Contexts setted", outputContexts )
 	
+				/* Line breaks */
+				if ( answers.length > 0 ) {
+					answers = answers.map( ( answer ) => { return {
+						...answer,
+						text: answer.text.split('\\').join('\u000A')
+					}
+					})	
+				}
+
+				const sessionBody: SessionBody = {
+					sessionId, textInput, answers, outputContexts,
+					intentId: intent.name,
+					intentName: intent.displayName,
+				}
 				
 				//STUB SAVE OR DELETE SESSION
-				if (outputContexts.length === 0) {
-					this._deleteSession()
-				} else {
-					const sessionBody: SessionBody = {
-						sessionId,textInput,answers,outputContexts,
-						intentId: intent.name,
-						intentName: intent.displayName,
-					}
-						
-					this._saveSession( sessionBody )
-				}
+				outputContexts.length === 0
+					? this._deleteSession()
+					: this._saveSession( sessionBody )
 
 				
 				//STUB FINNALIZE EVENT
 				return {
-					message: "ok",
+					state: "ok",
 					respuestas: answers,
+					session: sessionBody
 				}
 	
 			} else { return null }
@@ -190,7 +209,7 @@ export class SessionController {
 	protected ManageResponsesController = async (
 		arrayOfAnswer: Array<ResponseFromFirebase>,
 		queryResult: QueryResult,
-		clientId: string
+		userId: string
 	) => {
 		const promisesToHandle: Array<Promise<ApiMessagesSucceeded>> = [];
 		const parametersToEvaluate = this._parsedResponseFromDialogflow(
@@ -223,7 +242,7 @@ export class SessionController {
 						break;
 					case "search":
 						promisesToHandle.push(
-							this._validateSearch( validateResponse, clientId)
+							this._validateSearch( validateResponse, userId)
 						);
 						break;
 					case "conditional":
@@ -371,7 +390,8 @@ export class SessionController {
 				? conditional.parametro.split("$")[1].split(".")[0]
 				: conditional.parametro.split('.')[0]
 			: ''
-		const value = parameters.get(conditional.valor);
+		console.log( this._sessionParams[conditional.valor] )
+		const value = parameters.get( conditional.valor ) || this._sessionParams[conditional.valor]
 		// console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
 		console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
 			value,
@@ -574,9 +594,11 @@ export class SessionController {
 	public async searchForSessionId( userIDs: ClientIDs ): Promise<any> {
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection( clientsColPath )
-		// console.log( userIDs )
+		console.log( userIDs )
 
 		if ( userIDs.clientId ) {
+
+			console.log( 'Searching for cliente: ' + userIDs.clientId)
 			this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
 			const userDoc = await clientsRef.doc( userIDs.clientId ).get()
 			
@@ -584,31 +606,35 @@ export class SessionController {
 				console.log( 'user exists' )
 				const session = userDoc.data()[ 'session' ] as iCurrentSession
 				
-				// console.log(  "\x1b[36m", 'Session result:', session || null )
+				console.log(  "\x1b[36m", 'Session result:', session || null )
 				return session || null
 			 } else { return null }
 			
 		} else if ( userIDs.messengerId || userIDs.whatsappId ) {
 				
-			const platform = userIDs.messengerId 
-				? 'messengerId' : 'whatsappId'
+
+			const platform = userIDs.messengerId
+				? 'messengerId' : 'whatsappId';
+			console.log( `Searching for ${platform}: ${userIDs[platform]}` );
 			
 			const userFinded = await clientsRef
-			.where( platform, '==', userIDs[platform] )
-			.get()
+				.where( platform, '==', userIDs[platform] )
+				.get()
 			
 			
 			if ( !userFinded.empty ) {
 				
-				this.clientIDs.clientId = userFinded.docs[ 0 ].id	
+				this.clientIDs.clientId = userFinded.docs[ 0 ].id
+				console.log( `client found ${ this.clientIDs.clientId }` )
+				
 				this.clientIDs[platform] = userFinded.docs[0].data()[platform]
 				this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
-				// console.log( this.sessionPath )
-				let sessionId = userFinded.docs[ 0 ].data()[ 'sessionId' ]
-					? userFinded.docs[ 0 ].data()[ 'sessionId' ] : null
-				let outputContexts = userFinded.docs[ 0 ].data()[ 'outputContexts' ]
-					? userFinded.docs[ 0 ].data()[ 'outputContexts' ] : null
-				console.log(  "\x1b[36m", 'contexts finded in session', outputContexts )
+				const session = userFinded.docs[ 0 ].data()[ 'session' ]
+				console.log( "\x1b[36m", 'session found', session )
+				
+				const sessionId = session ? session.sessionId : null
+				const outputContexts = session ? session.outputContexts : null
+				
 				return { sessionId, outputContexts }
 			} else {
 				clientsRef.add( this.clientIDs )
@@ -671,7 +697,7 @@ export class SessionController {
 
 		return new Map(
 			newIterator.map( x => {
-				// console.log( '\x1b[33m%s\x1b[37m', 'x', x, '\n' )
+				console.log( '\x1b[33m%s\x1b[37m', 'parameters fields', x, '\n' )
 				const paramValueTypeName = x[ 1 ][ "kind" ];
 				const paramName = x[ 0 ];
 				let paramValue: any
@@ -679,7 +705,7 @@ export class SessionController {
 				if (paramValueTypeName === "structValue") {
 					// console.log( 'is structValue' )
 					const fields = x[ 1 ][ paramValueTypeName ][ "fields" ]
-					// console.log( 'structValue',  fields)
+					console.log( 'structValue',  fields)
 					paramValue = this._restructParamObject( fields )
 					
 				} else if (paramValueTypeName === 'listValue') {	
@@ -692,6 +718,11 @@ export class SessionController {
 					// const fields = values[ 0 ][ 'values' ][ 'fields' ]
 					// console.log( fields )
 					paramValue = this._restructParamObject( values )
+
+				} else if (typeof x != 'object') {
+
+					paramValue = x[ 1 ]
+					console.log( '!!! new conditional:',  x[1] )
 					
 				} else {
 					// console.log('otherValue', x[1][paramValueTypeName] )

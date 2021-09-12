@@ -92,7 +92,7 @@ export interface QueryResult {
     allRequiredParamsPresent: boolean | null;
     intent: Partial<IIntent>;
     fulfillmentText: string;
-    clientId?: string;
+    userId?: string;
     sessionId?: string;
     projectId?: string;
 }
