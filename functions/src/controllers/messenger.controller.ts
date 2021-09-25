@@ -29,8 +29,8 @@ export default class MessengerWebhook {
         /* Store message in firestore */
         // console.log( "Getting responses" )
         const convItem: ConversationItem = { projectId,senderId, message }
-        const { page_access_token, intent_response } = await
-            this.getAgentResponses( convItem, res )
+        const { page_access_token, intent_response } =
+            await this.getAgentResponses( convItem, res )
         
         if ( page_access_token ) {
             
@@ -44,7 +44,8 @@ export default class MessengerWebhook {
                     this.messenger.setNotificationType( 'REGULAR' )
 
                     // console.log( "Send messenger messages" )
-                    /* const response_messages =  */await this.sendMessages(senderId, intent_response.respuestas)
+                    // const response_messages = 
+                    await this.sendMessages( senderId, intent_response.respuestas )
                     this.messenger.sendAction( senderId, 'typing_off' )
                     
                     // this.result = new MessengerInteractionResult(
@@ -116,7 +117,8 @@ export default class MessengerWebhook {
                         /* Get the coversation doc and update in firestore */
                         
                         // console.log( 'Request detect intent:', detectIntentBody )
-                        const intent_response = await this.sessionCtr.detectIntent( detectIntentBody )
+                        const intent_response =
+                            await this.sessionCtr.detectIntent( detectIntentBody )
                         
                         if ( intent_response ) {
                             // console.log( "Intent detected and processed to responding" )
@@ -150,7 +152,7 @@ export default class MessengerWebhook {
         
     }
 
-    // private waitFor = (ms:number) => new Promise(r => setTimeout(r, ms));
+
 
     private sendMessages = async (
         senderId: string,
@@ -158,80 +160,80 @@ export default class MessengerWebhook {
     ): Promise<any[]> => {
         const responseMessages: any[] = []
         
-        await this.asyncForEach( responses, async response => {
-            // console.log( "process response:", response )
+        await this.asyncForEach( responses,
+            async (response) => {
+            // console.log( "process (response):", response )
 
             /* SEND MESSAGE WITH QUICK RESPONSES */
-            if ( response.suggestions && response.suggestions.length > 0 ) {
-                // console.log('send quick responses')
-                let suggests: QuickReply[] = []
-                response.suggestions.forEach( suggestion => {
-                    suggests.push( {
-                        content_type: "text",
-                        title:suggestion.text,
-                        payload:suggestion.text,
-                        image_url: suggestion.image_url || ""
-                        
-                    })
-                } )
-                
-                const message = {
-                    id: senderId,
-                    quickReplies: suggests,
-                    attachment: response.text
-                }
-                await this.messenger.sendQuickRepliesMessage( message )
-                responseMessages.push( message )
-
-                
-            /* SEND CARD MESSAGE */
-            } else if ( response.cards && response.cards.length > 0 ) {
-                console.log( 'Send template response' )
-                let cards: TemplateCard[] = []
-                response.cards.forEach( card => {
-                    let buttons: TemplateButton[] = []
-                    card.buttons.forEach( button => {
-                        buttons.push( {
-                            type: button.type,
-                            title: button.text,
-                            url: button.type === 'web_url' ? button.url : null,
-                            payload: button.type === 'postback' ? button.postback : null
+                if ( response.suggestions && response.suggestions.length > 0 ) {
+                    // console.log('send quick responses')
+                    let suggests: QuickReply[] = []
+                    response.suggestions.forEach( suggestion => {
+                        suggests.push( {
+                            content_type: "text",
+                            title:suggestion.text,
+                            payload:suggestion.text,
+                            image_url: suggestion.image_url || ""
+                            
                         })
                     } )
-                    // this.messenger.
-                    cards.push( {
-                        title: card.title,
-                        image_url: card.imageUri,
-                        subtitle: card.subtitle,
-                        default_action: {
-                            type: 'web_url',
-                            url: card.buttons[ 0 ].postback,
-                            messenger_extensions: false,
-                            webview_height_ratio: 'TALL'
-                        },
-                        buttons: buttons
-                    })
-                })
-            
-            
-            
-            // SEND TEXT RESPONSE
-            } else if ( response.text ) {
-                // console.log( 'Send text message:', response.text )
+                    
+                    const message = {
+                        id: senderId,
+                        quickReplies: suggests,
+                        attachment: response.text
+                    }
+                    await this.messenger.sendQuickRepliesMessage( message )
+                        .then( () => console.log( 'message sended: ' + message))
+                    responseMessages.push( message )
 
-                const message = {
-                    id: senderId,
-                    text: response.text
+                    
+                /* SEND CARD MESSAGE */
+                } else if ( response.cards && response.cards.length > 0 ) {
+                    console.log( 'Send template response' )
+                    let cards: TemplateCard[] = []
+                    response.cards.forEach( card => {
+                        let buttons: TemplateButton[] = []
+                        card.buttons.forEach( button => {
+                            buttons.push( {
+                                type: button.type,
+                                title: button.text,
+                                url: button.type === 'web_url' ? button.url : null,
+                                payload: button.type === 'postback' ? button.postback : null
+                            })
+                        } )
+                        // this.messenger.
+                        cards.push( {
+                            title: card.title,
+                            image_url: card.imageUri,
+                            subtitle: card.subtitle,
+                            default_action: {
+                                type: 'web_url',
+                                url: card.buttons[ 0 ].postback,
+                                messenger_extensions: false,
+                                webview_height_ratio: 'TALL'
+                            },
+                            buttons: buttons
+                        })
+                    })
+                
+                
+                
+                // SEND TEXT RESPONSE
+                } else if ( response.text ) {
+                    // console.log( 'Send text message:', response.text )
+
+                    const message = {
+                        id: senderId,
+                        text: response.text
+                    }
+                    await this.messenger.sendTextMessage( message )
+                        .then( () => console.log( 'message sended: ' + message))
+                    responseMessages.push( message )
                 }
-                await this.messenger.sendTextMessage( message )
-                responseMessages.push( message )
-            }
-            let waitSecs = response.text.length * 180
-            if ( waitSecs > 5000 ) {
-                await this.waitFor(5000)
-            } else {
-                await this.waitFor(waitSecs)
-            }
+                
+                let waitSecs = response.text.length * 180
+                await this.waitFor( waitSecs > 5000 ? 5000 : waitSecs)
         } )
 
         return responseMessages
