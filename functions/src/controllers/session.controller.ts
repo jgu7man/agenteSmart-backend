@@ -45,14 +45,48 @@ export class SessionController {
 	private clientIDs: ClientIDs
 	private sessionPath: string;
 	private _sessionParams: { [key: string]: any } = {}
-	private data: { [key: string]:any } = {}
+	private data: { [ key: string ]: any } = {}
+	private intentResponse: { [ key: string ]: any } = {}
+	private responsesProcess: { [ key: string ]: any } = {}
 	
 
+	
+	// ANCHOR API REQUEST 
+	public agentResponse = async (req: Request, res: Response): Promise<void> => {
+		try {
+			
+			const { projectId, textInput, clientId } = req.body;
+			
+			// console.log(  "\x1b[36m", 'inputContext getted', req.body.inputContexts )
+			const body: ClientRequest = {
+				projectId, textInput, userId: clientId,
+				sessionId: req.body.sessionId ? req.body.sessionId : null,
+				inputContexts: req.body.inputContexts ? req.body.inputContexts : null,
+				clientIDs: req.body.userIDs
+			}
+			
+			const response = await this.detectIntent(body)
+
+			if(response) {
+
+				res.status(200).json(response);
+				
+			} else {
+				res.status(200).json({
+					message: "No se detectó intent",
+				});
+				
+			}
+		} catch (error) {
+			console.error(error);
+			res.status(500).send("Error making session");
+		}
+	};
 	
 	// SECTION DETECT INTENT (ROOT)
 	public detectIntent = async ( body: ClientRequest ): Promise<IntentResponse> => {
 		
-		//STUB GET CLIENT DATA
+		/* 1. GET CLIENT DATA */
 		const { userId, projectId, textInput, clientIDs } = body;
 		
 		this.clientIDs = clientIDs
@@ -61,25 +95,23 @@ export class SessionController {
 
 		
 
-		//STUB GET SESSION DATA
+		/* 2. GET SESSION DATA */
 		let session = await this.searchForSessionId(clientIDs)
-		if ( !session ) console.log( "\x1b[35m", 'Sesión nueva' )
+		const sessionId = session?.sessionId || uuidv4();
+		this.sessionContexts = session?.outputContexts || []
 		
-		const sessionId = session
-			? session.sessionId ? session.sessionId
-			: uuidv4() : uuidv4();
-		this.sessionContexts = session ? session.outputContexts : []
-		// console.log( "\x1b[35m%s\x1b[33m", "UserId:", userId )
-		// console.log( "\x1b[35m%s\x1b[33m", "Session:", sessionId )
-		// console.log( "\x1b[35m%s\x1b[33m", "Contextos:", this.sessionContexts )
-		// console.log( "\x1b[35m%s\x1b[33m", "ProjectId:", projectId )
+		this.intentResponse[ 'new_session' ] = session ? true : false
+		this.intentResponse[ 'user_id' ] = userId
+		this.intentResponse[ 'session_id' ] = sessionId
+		this.intentResponse[ 'contexts' ] = this.sessionContexts
+		this.intentResponse[ 'project_id' ] = projectId
 		
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
 		
 		
-		//STUB SET REQUEST BODY
+		/* 3. SET REQUEST BODY */
 		const request = {
 			session: this._parentPath,
 			queryInput: {
@@ -95,26 +127,30 @@ export class SessionController {
 
 
 
-		//STUB DETECT INTENT
-		const response = await sessionClient.detectIntent( request ).then( result => result[ 0 ] );
+		/* 4. DETECT INTENT */
+		const response = await sessionClient.detectIntent( request )
+			.then( result => result[ 0 ] );
 		
 
 
-		//STUB CURATE INTENT DETECTED
+		/* 5. CURATE INTENT DETECTED */
 		if ( response.queryResult.intent ) {
 			const intent = response.queryResult.intent;
-			// console.log("\x1b[35m%s\x1b[33m", "Intent", intent.displayName );
-			// console.log("\x1b[35m%s\x1b[33m", "Query OutputContexts:", response.queryResult.outputContexts );
-			// console.log("\x1b[35m%s\x1b[33m", "Response Parameters:", response.queryResult.parameters.fields);
+			const outputContexts = response.queryResult.outputContexts
+			const paramFields = response.queryResult.parameters.fields
+			this.intentResponse[ 'intent_displayName' ] = intent.displayName;
+			this.intentResponse[ 'parametersFields' ] = paramFields;
+			this.responsesProcess[ 'parametersFields' ] = paramFields;
+			this.responsesProcess[ 'outputContexts' ] = outputContexts
 
 
 
-			//STUB STRUCTURE CONTEXT PARAMS 
+			/* 5.1. STRUCTURE CONTEXT PARAMS  */
 			this._saveSessionParams(response.queryResult.outputContexts)
 
 			
 
-			//STUB SET SESSION RESULT
+			/* 5.2. SET SESSION RESULT */
 			const sessionResult = <QueryResult> {
 				...response.queryResult,
 				userId,
@@ -124,26 +160,26 @@ export class SessionController {
 	
 
 
-			//STUB GET RESPONSES FROM FIRESTORE
+			/* 5.3. GET RESPONSES FROM FIRESTORE */
 			const responsesGetted = await
 				this.retriveMessagesFromFireStore(
 					userId,
 					projectId,
 					sessionResult.intent.name
 				);
-				// console.log('Respuestas obtenidas', responsesGetted)
+			this.responsesProcess['intent_responses'] = responsesGetted;
 	
 			
 			
-			//STUB RETURN STRUCTURED RESPONSES
+			/* 5.4. RETURN STRUCTURED RESPONSES */
 			if (responsesGetted) {
 				
-				// GET ANSWERS AND OUTPUT CONTEXTS
+				/* 5.4.1. GET ANSWERS AND OUTPUT CONTEXTS */
 				let { answers, outputContexts } =
 					await this.ManageResponsesController(
 						responsesGetted, sessionResult, userId
 					)
-					// console.log( "\x1b[34m", "output Contexts setted", outputContexts )
+				this.intentResponse['outputContexts'] = outputContexts
 	
 				/* Line breaks */
 				if ( answers.length > 0 ) {
@@ -160,48 +196,54 @@ export class SessionController {
 					intentName: intent.displayName,
 				}
 				
-				//STUB SAVE OR DELETE SESSION
+				/* 5.4.2. SAVE OR DELETE SESSION */
 				outputContexts.length === 0
 					? this._deleteSession()
 					: this._saveSession( sessionBody )
 
 				
-				//STUB FINNALIZE EVENT
+				/* 5.4.3. FINNALIZE EVENT */
+				console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
 				return {
 					state: "ok",
 					respuestas: answers,
 					session: sessionBody
 				}
 	
-			} else { return null }
+			} else {
+				console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+				return null
+			}
 
-		} else { return null}
+		} else {
+			console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+			console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+			return null
+		}
 		
 	}
+
 	// !SECTION
 	
+
+
+
+
 	// SECTION RESPONSES
-	// ANCHOR FIND RESPUESTAS FIRESTORE
+	/* FIND RESPUESTAS FIRESTORE */
 	private async retriveMessagesFromFireStore(
 		userId: string,
 		idProject: string,
 		intentName: string
 	): Promise<Array<ResponseFromFirebase | null>> {
-		// /usuarios/{idUser}/agentes/{idProject}/mensajes/{intentName}/respuestas
 		const idName = this.trimNames(intentName)
-
 		const pathToCollection = `/usuarios/${userId}/agentes/${idProject}/intents/${idName}/responses`;
-
-		// console.log( pathToCollection )
 		const intentRef = firestore.collection(pathToCollection).orderBy("index", "asc");
-		const respuestas: any[] = [];
-
 		const documents = await intentRef.get();
+		const respuestas: any[] = documents.docs.map(doc => doc.data())
 
-		documents.forEach(doc => {
-			respuestas.push(doc.data());
-			// console.log( "\x1b[34m", 'respuesta:', doc.data() )
-		});
 		return respuestas;
 	}
 
@@ -215,25 +257,22 @@ export class SessionController {
 		const parametersToEvaluate = this._parsedResponseFromDialogflow(
 			<ParameterFromQueryResult>queryResult.parameters
 		);
-		//setNewParams
-		queryResult.parameters = parametersToEvaluate;
-		// console.log('params to evaluate', parametersToEvaluate);
-		// console.log( 'array of awnsers', arrayOfAnswer )
-		// const parameterArray = queryResult.parameters;
-		
+		this.responsesProcess['params_to_evaluate'] = parametersToEvaluate;
 
+		/* Create callback for every response in firestore */
 		for (const answer of arrayOfAnswer) {
-			// console.log( '\x1b[33m', 'Answer inputContexts', answer.inputContexts )
-			// console.log( 'Is answer of session?', this.isContextAwnser(answer.inputContexts) )			
 			if (this.isContextAwnser(answer.inputContexts)) {
-				const validateResponse: iResponseValidate = { 
+				
+				const validateResponse: iResponseValidate = {
 					result: answer.result,
 					outputContexts: answer.outputContexts,
 					parameters: parametersToEvaluate,
 				}
 				
-				answer.result.text = this._replaceParameters(parametersToEvaluate, answer.result.text);
-				// console.log( 'tipo:', answer.tipo )
+				/* Replace Parameters for param map entry */
+				answer.result.text = this._replaceParameters( parametersToEvaluate, answer.result.text );
+				
+				/* Validate every response kind */
 				switch (answer.tipo) {
 					case "catch":
 						promisesToHandle.push(
@@ -259,30 +298,34 @@ export class SessionController {
 			}
 		}
 
-		// Validate no errors
+
+		/* Validate no errors */
 		let answers: ApiMessagesSucceeded[] = await Promise.all( promisesToHandle )
 			.catch(error => {
 				console.error("Error en la ejecucion de las validaciones", error);
 				return { ...error };
 			} );
+		this.intentResponse[ 'answers' ] = answers
+		this.responsesProcess['answers'] = answers
 		
-		// console.log("\x1b[35m", 'answers', answers)
-		
-		answers = answers.filter( a => a ) // clear of undefined answers
+
+		/* Clean answers from undefineds and default */
+		answers = answers.filter( a => a ) 
 		if (answers.length > 1) {
 			answers = answers.filter( a => !a.asDefault)
 		}
 		
+
+		/* Set contexts form every valid answers */
 		const outputContexts: Array<Context> = [];
 		const errors = [];
-
 		try {
 			for (const currentResponse of answers) {
-				// console.log( "\x1b[36m", "current response",currentResponse )
+				
+				/* Set contexts of outputContexts */
 				if (currentResponse
 					&& currentResponse.outputContexts
 					&& currentResponse.outputContexts.length > 0) {
-					// console.log("\x1b[36m", "current contextos", currentResponse.outputContexts)
 
 					await this.asyncForEach(currentResponse.outputContexts,
 						async (context: string) => {
@@ -303,19 +346,19 @@ export class SessionController {
 					})
 				}
 				
+
+				/* Set context of suggestions */
 				if (currentResponse && currentResponse.suggestions
 					&& currentResponse.suggestions.length > 0) { 
 					const sugContexts: string[] = currentResponse.suggestions
 						.map(s => s.context ? s.context : null)
+					this.intentResponse[ 'suggests_contexts'] = sugContexts
 					
-					// console.log( "\x1b[31m", "suggests contexts",  sugContexts)
 					await this.asyncForEach(sugContexts,async (c:string) => {
 						if ( !outputContexts.find(x => x === c) && c !== "" ) {
 							const contextAdded = await this._createContext(c);
 
 							outputContexts.push(contextAdded);
-							// console.log( contextAdded, "\x1b[36m", 'added to', outputContexts )
-							// console.log( outputContexts )
 						}
 					})
 				}
@@ -328,13 +371,9 @@ export class SessionController {
 			}
 		}
 			
-			
 		
+		return { answers, outputContexts }
 		
-		// console.log( "\x1b[31m%s\x1b[30", "output contexts about reponses", outputContexts )
-		return {answers, outputContexts}
-		// const responsesReturned = await this._controllerResponse();
-		// return responsesReturned;
 	};
 	
 	// ANCHOR SEARCH
@@ -342,33 +381,22 @@ export class SessionController {
 	{result, outputContexts, parameters}: iResponseValidate,
 	userId: string
 	): Promise<ApiMessagesSucceeded | null> => {
-		// **************************************** //
 		const searchResult = result as SearchOutput;
-		const value = parameters.get(searchResult.parametro);
-		// console.log("\x1b[33m%s\x1b[37m%s", "search criteria", { database: responseToValidate.database, value });
-		// console.log();
-		// console.log( searchResult, value )
+		const value = parameters.get( searchResult.parametro );
+		this.responsesProcess['search_criteria'] = {result, outputContexts, parameters, value}
 
 		if (searchResult.database && value) {
-			// console.log("response with search");
 			const pathToCollection = `/usuarios/${userId}/${searchResult.database}`;
-
-			
 			const databaseRef = await firestore
 				.collection(pathToCollection)
 				.where("id", "==",value)
 				.get();
-			const data = [];
+			const data:Card[] = databaseRef.docs.map(doc => doc.data() as Card)
 
-			// console.log( databaseRef.size )
-			for (const document of databaseRef.docs) {
-				// console.log( document.data() )
-				data.push((<any>document.data()) as Card);
+			this.responsesProcess[ 'search_result' ] = {
+				...searchResult, cards: data
 			}
 
-			// console.log( "\x1b[33m", 'Response with search' )
-			// console.log(  "\x1b[33m", searchResult.text )
-			// console.log(  "\x1b[36m", 'Set context by search', outputContexts )
 			return {
 				text: searchResult.text,
 				cards: data,
@@ -383,23 +411,9 @@ export class SessionController {
 		{result, outputContexts, parameters}: iResponseValidate
 	): Promise<ApiMessagesSucceeded | null> => {
 		const conditional = result as ConditionalOutput
-		let resolve = false;
-		// console.log( 'param', conditional.parametro )
-		// const param = conditional.parametro
-		// 	? conditional.parametro.startsWith('$')
-		// 		? conditional.parametro.split("$")[1].split(".")[0]
-		// 		: conditional.parametro.split('.')[0]
-		// 	: ''
-		// console.log( this._sessionParams[conditional.valor] )
 		const value = parameters.get( conditional.valor ) || this._sessionParams[conditional.valor]
-		// console.log("\x1b[36m%s\x1b[37m", "contexts for response", outputContexts)
-		// console.log("\x1b[36m%s\x1b[37m", "condition criteria", {
-		// 	value,
-		// 	condition: conditional.condicion,
-		// 	criterio: conditional.valor,
-		// 	param: param,
-		// });
-
+		let resolve = false;
+		
 		if (conditional.condicion === "no existe" && !value) {
 			resolve = true;
 		} else if (conditional.condicion === "existe" && value) {
@@ -429,10 +443,8 @@ export class SessionController {
 			}
 			} 
 		
-		if (resolve) {
-			// console.log( "\x1b[36m", "Response with condition" );
-			// console.log("\x1b[33m", conditional.text)
-			// console.log(  "\x1b[36m", 'Set context by conditional', outputContexts )
+		if ( resolve ) {
+			this.responsesProcess[ 'result_conditional' ] = {...conditional }
 			return { ...conditional, outputContexts: outputContexts };
 		}
 		return null;
@@ -448,7 +460,6 @@ export class SessionController {
 		this._sessionParams[dataParty.parametro] = value
 		this.data[dataParty.parametro] = value
 
-		// console.log( this._projectPath  )
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection(clientsColPath)
 		if ( !this.clientIDs.clientId ) {
@@ -458,15 +469,12 @@ export class SessionController {
 		} else {
 			const clientRef = clientsRef.doc( this.clientIDs.clientId )
 			clientRef.set({data:this.data, lastUpdate: new Date()}, {merge: true} )
-			// }
 		}
 
 
 		if (value) {
-			// console.log("\x1b[32m","response with datagroup", value);
 			await this._createContext( 'data', parameters, 50 );
-			// console.log("\x1b[33m", result.text)
-			// console.log(  "\x1b[36m", 'Set context by dataGroup', outputContexts )
+			this.responsesProcess['result_save'] = {...result, value}
 			return { ...result, outputContexts: outputContexts };
 		}
 		return null;
@@ -476,18 +484,18 @@ export class SessionController {
 	private _validateSimple = async (
 		{result, outputContexts}: iResponseValidate
 	): Promise<ApiMessagesSucceeded | null> => {
-		// console.log("\x1b[34m%s\x1b[37m", "simple criteria");
-		// console.log(responseToValidate);
 
 		if ( typeof result !== undefined ) {
-			// console.log( "\x1b[34m", 'Response with simple' )
-			// console.log("\x1b[33m", result.text)
-			// console.log(  "\x1b[36m", 'Set context by simple', outputContexts )
+			this.responsesProcess['result_default'] = {...result}
 			return { ...result, outputContexts };
 		}
 		return null;
 	};
 	// !SECTION
+
+
+
+
 
 
 	// SECTION CONTEXT
@@ -505,10 +513,8 @@ export class SessionController {
 		// projects/<Project ID>/agent/sessions/<Session ID>
 		// Parent string format
 		
-		// console.log( context )
 		const contextCreated = await contextClient.createContext({ parent: this._parentPath, context });
-		return new Promise((resolve, reject) => {
-			console.info( "Succefully Created context: ", this.trimNames(contextCreated[ 0 ].name))
+		return new Promise((resolve) => {
 			resolve(contextCreated[0]);
 		});
 	}
@@ -527,28 +533,10 @@ export class SessionController {
 	// !SECTION
 
 
-	// SECTION SESSION
-	// ANCHOR DELETE SESSION 
-	private async _deleteSession() {
-		const sessionRef = firestore.doc( this.sessionPath )
-		const sessionDoc = await sessionRef.get()
 
-		if (sessionDoc.exists) {
-			// const contexts = sessionDoc.get('session.outputContexts')
-			// console.log('borrar',  contexts.map((c:any) => this.trimNames(c.name)) )
-			await sessionRef.update( {
-				session: firebase.firestore.FieldValue.delete()
-			})
-		}
-		return
-	}
-	// private async _retriveAllContexts() {
-	// 	const contextClient = new ContextsClient({ credentials: keyFilename });
-	// 	// Parent Format: projects/<Project ID>/agent/sessions/<Session ID>
-	// 	return await contextClient.listContexts({
-	// 		parent: this._parentPath
-	// 	});
-	// }
+
+
+	// SECTION SESSION
 
 	// ANCHOR SAVE SESSION
 	private async _saveSession(sessionBody: SessionBody) {
@@ -678,8 +666,29 @@ export class SessionController {
 		
 	}
 
+	// ANCHOR DELETE SESSION 
+	private async _deleteSession() {
+		const sessionRef = firestore.doc( this.sessionPath )
+		const sessionDoc = await sessionRef.get()
+
+		if (sessionDoc.exists) {
+			// const contexts = sessionDoc.get('session.outputContexts')
+			// console.log('borrar',  contexts.map((c:any) => this.trimNames(c.name)) )
+			await sessionRef.update( {
+				session: firebase.firestore.FieldValue.delete()
+			})
+		}
+		return
+	}
 	// !SECTION
-	private types = new Map<string, SystemType>([
+
+
+
+
+
+	
+	// SECTION PARAMETERS
+	private paramTypes = new Map<string, SystemType>([
 		["startDateTime", "datetimeperoid"],
 		["street-address", "location"],
 		["startDate", "dateperiod"],
@@ -688,48 +697,37 @@ export class SessionController {
 		["currency", "unitcurrency"],
 		["unit", "duration"],
 		["name", "person"],
-	]);
-
-	// SECTION PARAMETERS
+	] );
+	
 	// ANCHOR PARAMETERS OF DETECT INTENT
 	private _parsedResponseFromDialogflow = (parameters: ParameterFromQueryResult) => {
-		const newIterator = Object.entries(parameters.fields);
+		const paramFields = Object.entries(parameters.fields);
 
 		return new Map(
-			newIterator.map( x => {
-				// console.log( '\x1b[33m%s\x1b[37m', 'parameters fields', x, '\n' )
-				const paramValueTypeName = x[ 1 ][ "kind" ];
-				const paramName = x[ 0 ];
+			paramFields.map( field => {
+				const paramValueTypeName = field[ 1 ][ "kind" ];
+				const paramName = field[ 0 ];
 				let paramValue: any
-				// console.log( paramValueTypeName )
-				if (paramValueTypeName === "structValue") {
-					// console.log( 'is structValue' )
-					const fields = x[ 1 ][ paramValueTypeName ][ "fields" ]
-					// console.log( 'structValue',  fields)
+				this.responsesProcess['paramValueTypeName'] = paramValueTypeName
+				
+				if ( paramValueTypeName === "structValue" ) {
+					const fields = field[ 1 ][ paramValueTypeName ][ "fields" ]
 					paramValue = this._restructParamObject( fields )
 					
 				} else if (paramValueTypeName === 'listValue') {	
-					// console.log( 'is listValue' )
-					// console.log(x[1])
-					// console.log( x[1][paramValueTypeName] )
-					const values = x[ 1 ][ paramValueTypeName ]['values']
-					// console.log('listValue', values)
-					// console.log( values[0] )
-					// const fields = values[ 0 ][ 'values' ][ 'fields' ]
-					// console.log( fields )
+					const values = field[ 1 ][ paramValueTypeName ][ 'values' ]
 					paramValue = this._restructParamObject( values )
 
-				} else if (typeof x != 'object') {
+				} else if (typeof field != 'object') {
 
-					paramValue = x[ 1 ]
-					// console.log( '!!! new conditional:',  x[1] )
+					paramValue = field[ 1 ]
 					
 				} else {
-					// console.log('otherValue', x[1][paramValueTypeName] )
-					paramValue = x[ 1 ][ paramValueTypeName ]
+					paramValue = field[ 1 ][ paramValueTypeName ]
 				}
-
-				// console.log("\x1b[32m%s\x1b[37m", paramName, paramValue);
+				
+				this.responsesProcess[ 'paramValue' ] = paramValue
+				this.responsesProcess[ 'paramName' ] = paramName
 
 				return [paramName, paramValue];
 			})
@@ -738,17 +736,11 @@ export class SessionController {
 
 	// ANCHOR Replace parameters in text
 	private _replaceParameters( _paramsMap: Map<string, any>, text_: string ) {
-		let text
-		// console.log( text_ )
-
-		
-
+		let text: string
 		if (text_.includes("$")) {
 			const posibleVariable = text_.split("$")[1].split(" ")[0].split(".");
-			// console.log('\x1b[35m%s\x1b[37m','posibleVariable', posibleVariable)
 			const variable = posibleVariable[0];
 
-			// console.log("\x1b[35m%s\x1b[37m", "variable", variable);
 			const value = _paramsMap.get(variable);
 			text = text_.replace(
 				posibleVariable.length > 1
@@ -758,7 +750,6 @@ export class SessionController {
 					: `$${variable}`,
 				value
 			);
-			// console.log("\x1b[32m%s\x1b[37m", "text replaced: ", text_);
 		}
 		return text ? text : text_;
 	}
@@ -767,9 +758,9 @@ export class SessionController {
 	private _getSystemEntityTypeName(object: IntentDetectedParam): SystemType {
 		let entityTypeName: SystemType;
 
-		for (const key of this.types.keys()) {
+		for (const key of this.paramTypes.keys()) {
 			if (key in object) {
-				entityTypeName = this.types.get(key);
+				entityTypeName = this.paramTypes.get(key);
 			}
 		}
 
@@ -815,9 +806,6 @@ export class SessionController {
 		// console.log( result );
 		return result;
 	}
-
-
-	
 	// !SECTION
 	
 
@@ -837,37 +825,7 @@ export class SessionController {
 		}
 	}
 
-	// ANCHOR API REQUEST 
-	public agentResponse = async (req: Request, res: Response): Promise<void> => {
-		try {
-			
-			const { projectId, textInput, clientId } = req.body;
-			
-			// console.log(  "\x1b[36m", 'inputContext getted', req.body.inputContexts )
-			const body: ClientRequest = {
-				projectId, textInput, userId: clientId,
-				sessionId: req.body.sessionId ? req.body.sessionId : null,
-				inputContexts: req.body.inputContexts ? req.body.inputContexts : null,
-				clientIDs: req.body.userIDs
-			}
-			
-			const response = await this.detectIntent(body)
-
-			if(response) {
-
-				res.status(200).json(response);
-				
-			} else {
-				res.status(200).json({
-					message: "No se detectó intent",
-				});
-				
-			}
-		} catch (error) {
-			console.error(error);
-			res.status(500).send("Error making session");
-		}
-	};
+	
 
 	// STUB TRIM NAMES 
 	private trimNames(name: string) {
