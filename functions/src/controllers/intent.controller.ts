@@ -64,12 +64,11 @@ export default class IntentController {
 				});
 				return true;
 			})
-			.catch(err => {
-				console.error("Error aqui");
-				res.status(400).json({
-					error: err,
-					message: "dificil procedimiento",
-				});
+			.catch(error => {
+				let message = "Error actualizando intent"
+				if (error.code && error.code === 9) message = 'Los parámetros no admiten caracteres especiales'
+				console.error( message );
+				res.status(400).json({ error,message });
 			});
 	};
 	private mergeParts = (trainingPhrases: [ITrainingPhrase]) => {
@@ -157,7 +156,7 @@ export default class IntentController {
 				res.status(204).end();
 				return;
 			}
-		} catch (error) {
+		} catch (error: any) {
 			if (error.code === 5) {
 				res
 					.status(404)
