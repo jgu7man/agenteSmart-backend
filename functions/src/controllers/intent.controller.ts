@@ -156,8 +156,9 @@ export default class IntentController {
 				res.status(204).end();
 				return;
 			}
-		} catch (error: any) {
-			if (error.code === 5) {
+		} catch ( e ) {
+			const error: any = e
+			if (error.code && error.code === 5) {
 				res
 					.status(404)
 					.json({
