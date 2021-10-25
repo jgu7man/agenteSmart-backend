@@ -96,11 +96,12 @@ export class SessionController {
 		
 
 		/* 2. GET SESSION DATA */
-		let session = await this.searchForSessionId(clientIDs)
+		let session = await this.searchForSessionId( clientIDs )
+		let wasFallback = session?.wasFallback || false
 		const sessionId = session?.sessionId || uuidv4();
 		this.sessionContexts = session?.outputContexts || []
 		
-		this.intentResponse[ 'new_session' ] = session ? true : false
+		this.intentResponse[ 'new_session' ] = session ? false : true
 		this.intentResponse[ 'user_id' ] = userId
 		this.intentResponse[ 'session_id' ] = sessionId
 		this.intentResponse[ 'contexts' ] = this.sessionContexts
@@ -109,119 +110,142 @@ export class SessionController {
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
-		
-		
-		/* 3. SET REQUEST BODY */
-		const request = {
-			session: this._parentPath,
-			queryInput: {
-				text: {
-					text: textInput,
-					languageCode: "es",
+		// console.log( this.intentResponse )
+		/* 3. VALIDTE PREVIOUS ATTENTION */
+		if ( !wasFallback ) {
+			
+			/* 4. SET REQUEST BODY */
+			const request = {
+				session: this._parentPath,
+				queryInput: {
+					text: {
+						text: textInput,
+						languageCode: "es",
+					},
 				},
-			},
-			queryParams: {
-				contexts: this.sessionContexts
-			}
-		};
-
-
-
-		/* 4. DETECT INTENT */
-		const response = await sessionClient.detectIntent( request )
-			.then( result => result[ 0 ] );
-		
-
-
-		/* 5. CURATE INTENT DETECTED */
-		if ( response.queryResult.intent ) {
-			const intent = response.queryResult.intent;
-			const outputContexts = response.queryResult.outputContexts
-			const paramFields = response.queryResult.parameters.fields
-			this.intentResponse[ 'intent_displayName' ] = intent.displayName;
-			this.intentResponse[ 'parametersFields' ] = paramFields;
-			this.responsesProcess[ 'parametersFields' ] = paramFields;
-			this.responsesProcess[ 'outputContexts' ] = outputContexts
-
-
-
-			/* 5.1. STRUCTURE CONTEXT PARAMS  */
-			this._saveSessionParams(response.queryResult.outputContexts)
-
-			
-
-			/* 5.2. SET SESSION RESULT */
-			const sessionResult = <QueryResult> {
-				...response.queryResult,
-				userId,
-				sessionId,
-				projectId,
+				queryParams: {
+					contexts: this.sessionContexts
+				}
 			};
-	
 
 
-			/* 5.3. GET RESPONSES FROM FIRESTORE */
-			const responsesGetted = await
-				this.retriveMessagesFromFireStore(
+
+			/* 5. DETECT INTENT */
+			const response = await sessionClient.detectIntent( request )
+				.then( result => result[ 0 ] );
+			
+
+
+				
+			if ( response.queryResult.intent ) {
+					
+				/* 6. CURATE INTENT DETECTED */
+				const intent = response.queryResult.intent;
+				const outputContexts = response.queryResult.outputContexts
+				const paramFields = response.queryResult.parameters.fields
+				this.intentResponse[ 'intent_displayName' ] = intent.displayName;
+				this.intentResponse[ 'parametersFields' ] = paramFields;
+				this.responsesProcess[ 'parametersFields' ] = paramFields;
+				this.responsesProcess[ 'outputContexts' ] = outputContexts
+
+
+
+				/* 6.1. STRUCTURE CONTEXT PARAMS  */
+				this._saveSessionParams(response.queryResult.outputContexts)
+
+				
+
+				/* 6.2. SET SESSION RESULT */
+				const sessionResult = <QueryResult> {
+					...response.queryResult,
 					userId,
+					sessionId,
 					projectId,
-					sessionResult.intent.name
-				);
-			this.responsesProcess['intent_responses'] = responsesGetted;
-	
-			
-			
-			/* 5.4. RETURN STRUCTURED RESPONSES */
-			if (responsesGetted) {
+				};
+		
 				
-				/* 5.4.1. GET ANSWERS AND OUTPUT CONTEXTS */
-				let { answers, outputContexts } =
-					await this.ManageResponsesController(
-						responsesGetted, sessionResult, userId
-					)
-				this.intentResponse['outputContexts'] = outputContexts
-	
-				/* Line breaks */
-				if ( answers.length > 0 ) {
-					answers = answers.map( ( answer ) => { return {
-						...answer,
-						text: answer.text.split('\\').join('\u000A')
+				
+				let intentName = sessionResult.intent.name
+				console.log( intent.displayName )
+				if ( session && (
+					intent.displayName == 'Default Welcome Intent' ||
+					intent.displayName == 'Default Fallback Intent'
+				) ) {
+					console.log( 'fallback' )
+					intentName = await this.getFallbackIntent( projectId ),
+					wasFallback = true
+				}
+				
+
+				/* 6.3. GET RESPONSES FROM FIRESTORE */
+				const responsesGetted = await
+					this.retriveMessagesFromFireStore(
+						userId,
+						projectId,
+						intentName
+					);
+				this.responsesProcess['intent_responses'] = responsesGetted;
+		
+				
+				
+				/* 6.4. RETURN STRUCTURED RESPONSES */
+				if (responsesGetted) {
+					
+					/* 6.4.1. GET ANSWERS AND OUTPUT CONTEXTS */
+					let { answers, outputContexts } =
+						await this.ManageResponsesController(
+							responsesGetted, sessionResult, userId
+						)
+					this.intentResponse['outputContexts'] = outputContexts
+		
+					/* Line breaks */
+					if ( answers.length > 0 ) {
+						answers = answers.map( ( answer ) => { return {
+							...answer,
+							text: answer.text.split('\\').join('\u000A')
+						}
+						})	
 					}
-					})	
+
+					const sessionBody: SessionBody = {
+						sessionId, textInput, answers, outputContexts, wasFallback,
+						intentId: intent.name,
+						intentName: intent.displayName,
+					}
+					
+					/* 6.4.2. SAVE OR DELETE SESSION */
+					outputContexts.length === 0 && !wasFallback
+						? this._deleteSession()
+						: this._saveSession( sessionBody )
+
+					
+					/* 6.4.3. FINNALIZE EVENT */
+					console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+					console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+					return {
+						state: "ok",
+						respuestas: answers,
+						session: sessionBody
+					}
+		
+				} else {
+					console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+					console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+					return null
 				}
 
-				const sessionBody: SessionBody = {
-					sessionId, textInput, answers, outputContexts,
-					intentId: intent.name,
-					intentName: intent.displayName,
-				}
-				
-				/* 5.4.2. SAVE OR DELETE SESSION */
-				outputContexts.length === 0
-					? this._deleteSession()
-					: this._saveSession( sessionBody )
-
-				
-				/* 5.4.3. FINNALIZE EVENT */
-				console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
-				return {
-					state: "ok",
-					respuestas: answers,
-					session: sessionBody
-				}
-	
 			} else {
 				console.log("\x1b[34m", 'Intent Response', this.intentResponse )
 				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
 				return null
 			}
-
 		} else {
 			console.log("\x1b[34m", 'Intent Response', this.intentResponse )
 			console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
 			return null
 		}
+		
+		
 		
 	}
 
@@ -550,6 +574,7 @@ export class SessionController {
 			outputContexts: sessionBody.outputContexts,
 			lastUpdate: new Date(),
 			sessionParams: this._sessionParams,
+			wasFallback: sessionBody.wasFallback,
 		} 
 		const respuestas = sessionBody.answers.map( a => a.text )
 		const interactions: iInteraction = {
@@ -578,8 +603,21 @@ export class SessionController {
 		}
 	}
 
+
+	public async getFallbackIntent( idProject: string ): Promise<string | null>{
+		const intentsPath = `${ this._accountPath }/agentes/${idProject}/intents`;
+		const intentsRef = firestore.collection( intentsPath )
+		const intentsDocs = await intentsRef
+			.where( 'displayName', '==', 'Default Fallback Intent' )
+			.get()
+
+		return intentsDocs.size > 0
+			? intentsDocs.docs[0].get('name') : null
+	}
+
+
 	// ANCHOR Search for session by user IDs
-	public async searchForSessionId( userIDs: ClientIDs ): Promise<any> {
+	async searchForSessionId( userIDs: ClientIDs ): Promise<iCurrentSession | null> {
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection( clientsColPath )
 		// console.log( userIDs )
@@ -596,7 +634,7 @@ export class SessionController {
 				
 				// console.log(  "\x1b[36m", 'Session result:', session || null )
 				return session || null
-			 } else { return null }
+			} else { return null }
 			
 		} else if ( userIDs.messengerId || userIDs.whatsappId ) {
 				
@@ -620,10 +658,7 @@ export class SessionController {
 				const session = userFinded.docs[ 0 ].data()[ 'session' ]
 				// console.log( "\x1b[36m", 'session found', session )
 				
-				const sessionId = session ? session.sessionId : null
-				const outputContexts = session ? session.outputContexts : null
-				
-				return { sessionId, outputContexts }
+				return session
 			} else {
 				clientsRef.add( this.clientIDs )
 					.then( doc => {

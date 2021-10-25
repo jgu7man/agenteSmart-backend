@@ -17,13 +17,15 @@ export interface SessionBody {
     intentId?: string,
     intentName?: string,
     outputContexts?: any[]
+    wasFallback: boolean;
 }
 
 export interface iCurrentSession{
     sessionId: string;
     outputContexts: any[]
     lastUpdate: Date | firebase.firestore.Timestamp
-    sessionParams: { [key: string]: any }
+    sessionParams: { [ key: string ]: any }
+    wasFallback: boolean;
 }
 
 export interface iInteraction {
