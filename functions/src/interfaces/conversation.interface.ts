@@ -18,6 +18,7 @@ export interface SessionBody {
     intentName?: string,
     outputContexts?: any[]
     wasFallback: boolean;
+    isNew?: boolean;
 }
 
 export interface iCurrentSession{

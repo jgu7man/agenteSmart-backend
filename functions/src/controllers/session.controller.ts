@@ -573,7 +573,7 @@ export class SessionController {
 		const interactionsPath = `${ this._projectPath }/interactions`
 		const interactionsRef = firestore.collection(interactionsPath)
 		// console.log(  "\x1b[35m", 'will save contexts...', sessionBody.outputContexts )
-		const session: iCurrentSession = {
+		let session: iCurrentSession = {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
 			lastUpdate: new Date(),
@@ -595,13 +595,13 @@ export class SessionController {
 		interactionsRef.add(interactions)
 
 		if ( !this.clientIDs.clientId ) {
-			clientsRef.add( {session} ).then( c => {
+			clientsRef.add( {session, isNew: true} ).then( c => {
 				c.update({clientId: c.id})
 				c.collection('conversation').add(interactions)
 			} )
 		} else {
 			const clientRef = clientsRef.doc( this.clientIDs.clientId )
-			clientRef.set( {session}, { merge: true } ).then( c => {
+			clientRef.set( {session, wasFallback: sessionBody.wasFallback || false}, { merge: true } ).then( c => {
 				clientRef.collection( 'conversation' ).add( interactions )
 			})
 		}
@@ -621,16 +621,16 @@ export class SessionController {
 
 
 	// ANCHOR Search for session by user IDs
-	async searchForSessionId( userIDs: ClientIDs ): Promise<iCurrentSession | null> {
+	async searchForSessionId( clientIDs: ClientIDs ): Promise<iCurrentSession | null> {
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection( clientsColPath )
-		// console.log( userIDs )
+		// console.log( clientIDs )
 
-		if ( userIDs.clientId ) {
+		if ( clientIDs.clientId ) {
 
-			// console.log( 'Searching for cliente: ' + userIDs.clientId)
+			// console.log( 'Searching for cliente: ' + clientIDs.clientId)
 			this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
-			const userDoc = await clientsRef.doc( userIDs.clientId ).get()
+			const userDoc = await clientsRef.doc( clientIDs.clientId ).get()
 			
 			if ( userDoc.exists ) {
 				// console.log( 'user exists' )
@@ -640,15 +640,15 @@ export class SessionController {
 				return session || null
 			} else { return null }
 			
-		} else if ( userIDs.messengerId || userIDs.whatsappId ) {
+		} else if ( clientIDs.messengerId || clientIDs.whatsappId ) {
 				
 
-			const platform = userIDs.messengerId
+			const platform = clientIDs.messengerId
 				? 'messengerId' : 'whatsappId';
-			// console.log( `Searching for ${platform}: ${userIDs[platform]}` );
+			// console.log( `Searching for ${platform}: ${clientIDs	[platform]}` );
 			
 			const userFinded = await clientsRef
-				.where( platform, '==', userIDs[platform] )
+				.where( platform, '==', clientIDs[platform] )
 				.get()
 			
 			
@@ -667,7 +667,7 @@ export class SessionController {
 				clientsRef.add( this.clientIDs )
 					.then( doc => {
 						this.clientIDs.clientId = doc.id
-						clientsRef.doc(doc.id).update({ userId: doc.id })
+						clientsRef.doc(doc.id).update({ clientId: doc.id })
 						this.sessionPath = `${ clientsColPath }/${ this.clientIDs.clientId }`
 					} )
 				return null
