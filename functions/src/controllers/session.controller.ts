@@ -110,11 +110,9 @@ export class SessionController {
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
-		// console.log( this.intentResponse )
-		/* 3. VALIDTE PREVIOUS ATTENTION */
-		if ( !wasFallback ) {
+	
 			
-			/* 4. SET REQUEST BODY */
+			/* 3. SET REQUEST BODY */
 			const request = {
 				session: this._parentPath,
 				queryInput: {
@@ -130,7 +128,7 @@ export class SessionController {
 
 
 
-			/* 5. DETECT INTENT */
+			/* 4. DETECT INTENT */
 			const response = await sessionClient.detectIntent( request )
 				.then( result => result[ 0 ] );
 			
@@ -139,7 +137,7 @@ export class SessionController {
 				
 			if ( response.queryResult.intent ) {
 					
-				/* 6. CURATE INTENT DETECTED */
+				/* 5. CURATE INTENT DETECTED */
 				const intent = response.queryResult.intent;
 				const outputContexts = response.queryResult.outputContexts
 				const paramFields = response.queryResult.parameters.fields
@@ -150,12 +148,12 @@ export class SessionController {
 
 
 
-				/* 6.1. STRUCTURE CONTEXT PARAMS  */
+				/* 5.1. STRUCTURE CONTEXT PARAMS  */
 				this._saveSessionParams(response.queryResult.outputContexts)
 
 				
 
-				/* 6.2. SET SESSION RESULT */
+				/* 5.2. SET SESSION RESULT */
 				const sessionResult = <QueryResult> {
 					...response.queryResult,
 					userId,
@@ -177,7 +175,7 @@ export class SessionController {
 				}
 				
 
-				/* 6.3. GET RESPONSES FROM FIRESTORE */
+				/* 5.3. GET RESPONSES FROM FIRESTORE */
 				const responsesGetted = await
 					this.retriveMessagesFromFireStore(
 						userId,
@@ -188,10 +186,10 @@ export class SessionController {
 		
 				
 				
-				/* 6.4. RETURN STRUCTURED RESPONSES */
+				/* 5.4. RETURN STRUCTURED RESPONSES */
 				if (responsesGetted) {
 					
-					/* 6.4.1. GET ANSWERS AND OUTPUT CONTEXTS */
+					/* 5.4.1. GET ANSWERS AND OUTPUT CONTEXTS */
 					let { answers, outputContexts } =
 						await this.ManageResponsesController(
 							responsesGetted, sessionResult, userId
@@ -213,21 +211,31 @@ export class SessionController {
 						intentName: intent.displayName,
 					}
 					
-					/* 6.4.2. SAVE OR DELETE SESSION */
+					/* 5.4.2. SAVE OR DELETE SESSION */
 					outputContexts.length === 0 && !wasFallback
 						? this._deleteSession()
 						: this._saveSession( sessionBody )
 
+
+							// console.log( this.intentResponse )
+					/* 5.4.3. VALIDTE PREVIOUS ATTENTION */
+					if ( !wasFallback ) {
 					
-					/* 6.4.3. FINNALIZE EVENT */
-					console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-					console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
-					return {
-						state: "ok",
-						respuestas: answers,
-						session: sessionBody
+						/* 5.4.4. FINNALIZE EVENT */
+						console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
+						console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+						return {
+							state: "ok",
+							respuestas: answers,
+							session: sessionBody
+						}
+
+					} else {
+						console.log("\x1b[34m", 'Intent Response', this.intentResponse )
+						console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+						return null
 					}
-		
+					
 				} else {
 					console.log("\x1b[34m", 'Intent Response', this.intentResponse )
 					console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
@@ -239,11 +247,7 @@ export class SessionController {
 				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
 				return null
 			}
-		} else {
-			console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-			console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
-			return null
-		}
+
 		
 		
 		
