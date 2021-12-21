@@ -28,49 +28,55 @@ export default class MessengerWebhook {
         
         /* Store message in firestore */
         // console.log( "Getting responses" )
-        const convItem: ConversationItem = { projectId,senderId, message }
-        const { page_access_token, intent_response } =
-            await this.getAgentResponses( convItem, res )
-        
-        if ( page_access_token ) {
-            
-            /* Respond in messenger platform */
-            try {
-
-                // console.log( 'Post in messenger service' );
-                if ( intent_response.state === 'ok' ) {
-                    this.messenger.setToken( page_access_token )
-                    this.messenger.sendAction(senderId, 'typing_on')
-                    this.messenger.setNotificationType( 'REGULAR' )
-
-                    // console.log( "Send messenger messages" )
-                    // const response_messages = 
-                    await this.sendMessages( senderId, intent_response.respuestas )
-                    this.messenger.sendAction( senderId, 'typing_off' )
+        const convItem: ConversationItem = { projectId, senderId, message }
+        try {
+            const { page_access_token, intent_response } =
+                await this.getAgentResponses( convItem, res )
+          
+            if ( page_access_token ) {
+                
+                /* Respond in messenger platform */
+                try {
+    
+                    // console.log( 'Post in messenger service' );
+                    if ( intent_response.state === 'ok' ) {
+                        this.messenger.setToken( page_access_token )
+                        this.messenger.sendAction(senderId, 'typing_on')
+                        this.messenger.setNotificationType( 'REGULAR' )
+    
+                        // console.log( "Send messenger messages" )
+                        // const response_messages = 
+                        await this.sendMessages( senderId, intent_response.respuestas )
+                        this.messenger.sendAction( senderId, 'typing_off' )
+                        
+                        // this.result = new MessengerInteractionResult(
+                        //     p
+                        // )
+                        res.status( 200 ).json( 'Response emited' );
                     
-                    // this.result = new MessengerInteractionResult(
-                    //     p
-                    // )
-                    res.status( 200 ).json( 'Response emited' );
-                
-                
-                } else {
-                    res.status( 200 ).json( {
-                        state: 'ERROR',
-                        message: intent_response.state
-                    })
+                    
+                    } else {
+                        res.status( 200 ).json( {
+                            state: 'ERROR',
+                            message: intent_response.state
+                        })
+                    }
+    
+    
+                    
+                } catch (error) {
+                    console.error(error);
+                    res.status(200).send('Error posting in messenger service')
                 }
-
-
-                
-            } catch (error) {
-                console.error(error);
-                res.status(200).send('Error posting in messenger service')
+    
+            } else {
+                res.status(200).send('There is no response')
             }
-
-        } else {
-            res.status(200).send('There is no response')
+        } catch ( error ) {
+            res.status(200).send(JSON.stringify(error))
+            // console.error(error)
         }
+        
     }
 
     private async getAgentResponses(
@@ -184,7 +190,7 @@ export default class MessengerWebhook {
                         attachment: response.text
                     }
                     await this.messenger.sendQuickRepliesMessage( message )
-                        .then( () => console.log( 'message sended: ' + message))
+                        .then( () => console.log( 'message sended: ' + JSON.stringify( message)))
                     responseMessages.push( message )
 
                     
@@ -228,7 +234,7 @@ export default class MessengerWebhook {
                         text: response.text
                     }
                     await this.messenger.sendTextMessage( message )
-                        .then( () => console.log( 'message sended: ' + message))
+                        .then( () => console.log( 'message sended: ' + JSON.stringify(message)))
                     responseMessages.push( message )
                 }
                 

@@ -11,6 +11,7 @@
     "deploy": "tsc && firebase deploy --only functions,hosting",
     "logs": "firebase functions:log",
     "debug": "nodemon -e ts --exec \"npm run serve\"",
+    "build:watch": "tsc -w",
     "test:ip": "tsc && firebase serve -o 192.168.1.65",
     "serve:ip": "nodemon -e ts --exec \"npm run test:ip\""
   },

@@ -1,0 +1,26 @@
+{
+  "name": "agentesmart-backend",
+  "version": "1.0.0",
+  "description": "workspace for agentesmart-backend",
+  "main": "index.js",
+  "scripts": {
+    "test": "test",
+    "start": "cd functions && npm run debug",
+    "deploy": "cd functions && npm run deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jgu7man/agenteSmart-backend.git"
+  },
+  "keywords": [
+    "backend",
+    "agente",
+    "smart"
+  ],
+  "author": "jgu7man",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jgu7man/agenteSmart-backend/issues"
+  },
+  "homepage": "https://github.com/jgu7man/agenteSmart-backend#readme"
+}

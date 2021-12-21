@@ -48,6 +48,7 @@ export class SessionController {
 	private data: { [ key: string ]: any } = {}
 	private intentResponse: { [ key: string ]: any } = {}
 	private responsesProcess: { [ key: string ]: any } = {}
+	private debugMode: boolean = false
 	
 
 	
@@ -55,7 +56,7 @@ export class SessionController {
 	public agentResponse = async (req: Request, res: Response): Promise<void> => {
 		try {
 			
-			const { projectId, textInput, clientId } = req.body;
+			const { projectId, textInput, clientId, debug } = req.body;
 			
 			// console.log(  "\x1b[36m", 'inputContext getted', req.body.inputContexts )
 			const body: ClientRequest = {
@@ -64,6 +65,8 @@ export class SessionController {
 				inputContexts: req.body.inputContexts ? req.body.inputContexts : null,
 				clientIDs: req.body.userIDs
 			}
+
+			this.debugMode = debug
 			
 			const response = await this.detectIntent(body)
 
@@ -110,6 +113,7 @@ export class SessionController {
 		const sessionClient = new SessionsClient({ credentials: keyFilename });
 		this._parentPath = sessionClient.projectAgentSessionPath(projectId, sessionId);
 
+		
 	
 			
 			/* 3. SET REQUEST BODY */
@@ -145,7 +149,9 @@ export class SessionController {
 				this.intentResponse[ 'parametersFields' ] = paramFields;
 				this.responsesProcess[ 'parametersFields' ] = paramFields;
 				this.responsesProcess[ 'outputContexts' ] = outputContexts
-
+				// console.log( response.queryResult.parameters )
+				// console.log( JSON.stringify(this.intentResponse) )
+				// if(this.debugMode) console.log( this.intentResponse )
 
 
 				/* 5.1. STRUCTURE CONTEXT PARAMS  */
@@ -222,8 +228,13 @@ export class SessionController {
 					if ( !wasFallback ) {
 					
 						/* 5.4.4. FINNALIZE EVENT */
-						console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
-						console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+						if ( this.debugMode ) {
+							console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
+							console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+						} else {
+							console.log( 'Intent Response',  JSON.stringify(this.intentResponse) )
+							console.log( 'Response Process', JSON.stringify( this.responsesProcess ))
+						}
 						return {
 							state: "ok",
 							respuestas: answers,
@@ -231,20 +242,35 @@ export class SessionController {
 						}
 
 					} else {
-						console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-						console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+						if ( this.debugMode ) {
+							console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
+							console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+						} else {
+							console.log( 'Intent Response',  JSON.stringify(this.intentResponse) )
+							console.log( 'Response Process', JSON.stringify( this.responsesProcess ))
+						}
 						return null
 					}
 					
 				} else {
-					console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-					console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+					if ( this.debugMode ) {
+						console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
+						console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+					} else {
+						console.log( 'Intent Response',  JSON.stringify(this.intentResponse) )
+						console.log( 'Response Process', JSON.stringify( this.responsesProcess ))
+					}
 					return null
 				}
 
 			} else {
-				console.log("\x1b[34m", 'Intent Response', this.intentResponse )
-				console.log("\x1b[34m", 'Response Process',  this.responsesProcess )
+				if ( this.debugMode ) {
+					console.log( "\x1b[34m", 'Intent Response', this.intentResponse )
+					console.log( "\x1b[34m", 'Response Process', this.responsesProcess )
+				} else {
+					console.log( 'Intent Response',  JSON.stringify(this.intentResponse) )
+					console.log( 'Response Process', JSON.stringify( this.responsesProcess ))
+				}
 				return null
 			}
 
@@ -285,6 +311,7 @@ export class SessionController {
 		const parametersToEvaluate = this._parsedResponseFromDialogflow(
 			<ParameterFromQueryResult>queryResult.parameters
 		);
+		// console.log( parametersToEvaluate )
 		this.responsesProcess['params_to_evaluate'] = parametersToEvaluate;
 
 		/* Create callback for every response in firestore */
@@ -439,8 +466,16 @@ export class SessionController {
 		{result, outputContexts, parameters}: iResponseValidate
 	): Promise<ApiMessagesSucceeded | null> => {
 		const conditional = result as ConditionalOutput
-		const value = parameters.get( conditional.valor ) || this._sessionParams[conditional.valor]
+		const value = (parameters.get( conditional.valor ) ? conditional.valor : undefined) || this._sessionParams[conditional.valor]
 		let resolve = false;
+
+		if ( this.debugMode ) {
+			// console.log( conditional )
+			console.log( 'Parametro', conditional.parametro )
+			console.log( 'Valor conditional', conditional.valor )
+			console.log( 'Valor parametro', value )
+			// console.log( {from_params: parameters.get( conditional.valor ), fromSesion: this._sessionParams[ conditional.valor ]} )
+		}
 		
 		if (conditional.condicion === "no existe" && !value) {
 			resolve = true;
@@ -483,22 +518,30 @@ export class SessionController {
 		{result, outputContexts, parameters}: iResponseValidate
 	): Promise<ApiMessagesSucceeded | null> => {
 		const dataParty = result as DataParty
+		
 		const value = parameters.get(dataParty.parametro);
 		// console.log(dataParty)
-		this._sessionParams[dataParty.parametro] = value
-		this.data[dataParty.parametro] = value
+		if ( dataParty.parametro ) {
+			this._sessionParams[ dataParty.parametro ] = value
+			this.data[dataParty.parametro] = value
+		}
 
 		const clientsColPath = `${ this._accountPath }/clients`
 		const clientsRef = firestore.collection(clientsColPath)
-		if ( !this.clientIDs.clientId ) {
-			clientsRef.add({data:this.data, lastUpdate: new Date()}).then( c => {
-				this.clientIDs.clientId = c.id
-			})
-		} else {
-			const clientRef = clientsRef.doc( this.clientIDs.clientId )
-			clientRef.set({data:this.data, lastUpdate: new Date()}, {merge: true} )
-		}
 
+		if ( dataParty.parametro ) {
+			
+			if ( !this.clientIDs.clientId ) {
+				clientsRef.add({data:this.data, lastUpdate: new Date()}).then( c => {
+					this.clientIDs.clientId = c.id
+				})
+			} else {
+				if ( this.clientIDs.clientId ) {
+					const clientRef = clientsRef.doc( this.clientIDs.clientId )
+					clientRef.set({data:this.data, lastUpdate: new Date()}, {merge: true} )
+				}
+			}
+		}
 
 		if (value) {
 			await this._createContext( 'data', parameters, 50 );
@@ -577,9 +620,12 @@ export class SessionController {
 			sessionId: sessionBody.sessionId,
 			outputContexts: sessionBody.outputContexts,
 			lastUpdate: new Date(),
-			sessionParams: this._sessionParams,
+			sessionParams: Object.keys( this._sessionParams ).length === 0
+			? null : this._sessionParams,
 			wasFallback: sessionBody.wasFallback,
-		} 
+		}
+		
+		// console.log( Object.keys( this._sessionParams ).length === 0,this._sessionParams  )
 		const respuestas = sessionBody.answers.map( a => a.text )
 		const interactions: iInteraction = {
 			client: sessionBody.textInput, 
@@ -595,13 +641,16 @@ export class SessionController {
 		interactionsRef.add(interactions)
 
 		if ( !this.clientIDs.clientId ) {
-			clientsRef.add( {session, isNew: true} ).then( c => {
+			// console.log( 'add session' )
+			clientsRef.add( {session: session, isNew: true} ).then( c => {
 				c.update({clientId: c.id})
 				c.collection('conversation').add(interactions)
 			} )
 		} else {
+			// console.log( 'restore session', this.clientIDs.clientId )
 			const clientRef = clientsRef.doc( this.clientIDs.clientId )
-			clientRef.set( {session, wasFallback: sessionBody.wasFallback || false}, { merge: true } ).then( c => {
+			// console.log(JSON.stringify({session: session, wasFallback: sessionBody.wasFallback || false}))
+			clientRef.set( {session:session, wasFallback: sessionBody.wasFallback || false}, { merge: true } ).then( c => {
 				clientRef.collection( 'conversation' ).add( interactions )
 			})
 		}
@@ -693,9 +742,11 @@ export class SessionController {
 				Object.keys(fields).forEach(fieldName => {
 					// console.log( fieldName )
 					const valueName = Object.keys(fields[fieldName])[0] as ParamType
-					const value = fields[fieldName][valueName]
-					if (!this._sessionParams[fieldName] && value ) {
-						this._sessionParams[fieldName] = value
+					const value = fields[ fieldName ][ valueName ]
+					if ( fieldName ) {
+						if (!this._sessionParams[fieldName] && value ) {
+							this._sessionParams[fieldName] = value
+						}
 					}
 				})
 			}
@@ -740,14 +791,16 @@ export class SessionController {
 	
 	// ANCHOR PARAMETERS OF DETECT INTENT
 	private _parsedResponseFromDialogflow = (parameters: ParameterFromQueryResult) => {
-		const paramFields = Object.entries(parameters.fields);
+		const paramFields = Object.entries( parameters.fields );
+		// console.log( paramFields )
+		this.responsesProcess['paramFields'] = paramFields
 
 		return new Map(
 			paramFields.map( field => {
 				const paramValueTypeName = field[ 1 ][ "kind" ];
 				const paramName = field[ 0 ];
 				let paramValue: any
-				this.responsesProcess['paramValueTypeName'] = paramValueTypeName
+				// this.responsesProcess['paramValueTypeName'] = paramValueTypeName
 				
 				if ( paramValueTypeName === "structValue" ) {
 					const fields = field[ 1 ][ paramValueTypeName ][ "fields" ]
